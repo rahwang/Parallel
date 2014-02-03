@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #include "Utils/generators.h"
 #include "Utils/stopwatch.h"
@@ -13,7 +14,7 @@
 #include "Utils/seriallist.h"
 
 /* Run serial-queue firewall */
-void serial_queue_firewall (int numPackets,
+long *serial_queue_firewall (int numPackets,
 			    int numSources,
 			    long mean,
 			    int uniformFlag,
@@ -21,7 +22,7 @@ void serial_queue_firewall (int numPackets,
 			    int queueDepth);
 
 /* Run serial firewall */
-void serial_firewall (int numPackets,
+long *serial_firewall (int numPackets,
 		      int numSources,
 		      long mean,
 		      int uniformFlag,
@@ -29,7 +30,7 @@ void serial_firewall (int numPackets,
 		      int queueDepth);
 
 /* Run parallel firewall */
-void parallel_firewall (int numPackets,
+long *parallel_firewall (int numPackets,
 			int numSources,
 			long mean,
 			int uniformFlag,
@@ -44,5 +45,19 @@ int enqueue(int *count, SerialList_t *q, int numPackets, int depth, volatile Pac
 
 /* Allocate queues */
 SerialList_t **create_queues(int numSources);
+
+/* define thread data struct */
+typedef struct thr_data_t {
+  int *count;
+  long int *fp;
+  int tid;
+  SerialList_t *q;
+} thr_data_t;
+
+/* Spawn threads */
+pthread_t *thread(int n, int *count, SerialList_t **queues, long int *fingerprint);
+
+/* Thread function: dequeue */
+void *thr_dequeue(void *arg);
 
 #endif
