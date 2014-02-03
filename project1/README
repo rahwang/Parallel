@@ -1,0 +1,13 @@
+Rachel Hwang
+CMSC 230: Parallel Computing
+Project 1
+
+This directory contains two implemnetations of the Floyd-Warshall algorithm,
+- a serial (src/floyd_serial.c)
+- a parallel (src/floyd_parallel.c)
+
+Important functions are stored funcs.c
+
+To run the serial, in the src directory, make then run './floyd_serial INPUTFILE'.
+To run the parallel, in the src directory, make then run './floyd_parallel NUMTHREADS INPUTFILE'
+To run the tests, in the tests directory, make then run './serial' and/or './parallel'
