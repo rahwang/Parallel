@@ -154,11 +154,100 @@ int TESTserial_queue(int numPackets, int numSources, int uniformFlag, short expe
 
 
 
+/* TEST thread()
+ * should return an array of the correct number of threads
+ */
+int TESTthread(int n) {
+
+  int i;
+  pthread_t *thr;
+
+  // Create queues
+  SerialList_t **queues = create_queues(n);
+  
+  // Store number of packets already enqueued, per queue
+  int *count = (int *)malloc(sizeof(int)*n);
+  for (i = 0; i < n; i++) {
+    count[i] = 0;
+  }
+  
+  // Fingerprint destination
+  long *fingerprint = (long *)malloc(sizeof(long)*n);
+
+  // Initialize barrier
+  pthread_barrier_init(&b, NULL, n+1);
+
+  thr = thread(n, count, queues, fingerprint);
+
+  for (i = 0; i < n; i++) {
+    if (!thr[i]) {
+      return 0;
+    }
+    count[i] = DONE;
+  }
+  pthread_barrier_wait(&b);
+
+  for (i = 0; i < n; i++) {
+    pthread_join(thr[i], NULL);
+  }
+  return 1;
+}
+    
+
+/* TEST thr_dequeue
+ * should properly dequeue and get proper fp result
+ * return 1 on PASS
+ */
+int TESTthr_dequeue(int n) {
+  int i;
+  PacketSource_t * packetSource = createPacketSource(100, 1, 4);
+  
+  SerialList_t *queue = createSerialList();
+  SerialList_t *test = createSerialList();
+  Item_t *curr;
+  int count1 = 0, count2 = 0;
+  long int f1 = 0;
+  long int f2 = 0;
+
+  // Initialize barrier
+  pthread_barrier_init(&b, NULL, 2);
+
+  pthread_t *t = thread(1, &count1, &queue, &f1);
+  
+  for (i=0; i < n; i++) {
+    volatile Packet_t *packet = getUniformPacket(packetSource,0);
+    enqueue(&count2, test, n, 32, packet);
+    enqueue(&count1, queue, n, 32, packet);
+  }
+  
+  for (i = 0; i < n; i++) {
+    if (test->size > 0) {
+      curr = test->head;
+      while (curr->next) {
+	curr = curr->next;
+      }
+      f2 += getFingerprint((curr->value)->iterations, (curr->value)->seed);
+      remove_list(test, curr->key);
+    }
+  }
+  count1 = DONE;
+  pthread_barrier_wait(&b); 
+
+  pthread_join(*t, NULL);
+
+  if (!n) {
+    return compList(queue, test) && (f1 == 0);
+  }
+  return compList(queue, test) && (f1 == f2);
+}
+
+
+
 int main() {
 
-  //int i;
+  int i;
 
-  printf("\nTESTS for Serial Queue (squeue_firewall.c) \nUnless stated otherwise, [n = 1, D = 32, W = 100]\n");
+  printf("\nTESTS for Serial Queue (squeue_firewall.c) \nUnless stated otherwise, [n = 1, D = 32, W = 100]\n\n");
 
   res(TESTcreate(), "create_queues", "");
   res(TESTenqueue(1), "enqueue1", "(T = 1)");
@@ -176,25 +265,26 @@ int main() {
   t1 = t2 = t3 = t4 = t5 = t6 = t7 = t8 = t9 = t10 = 1;
 
   // run multiple trials
-  /*  for (i = 0; i < 1; i++) {
+  for (i = 0; i < 1; i++) {
     t1 *= TESTserial_queue(1, 1, 1, i);
-    t2 *= TESTserial_queue(128, 1, 1, i);
-    t3 *= TESTserial_queue(128, 8, 1, i);
-    t4 *= TESTserial_queue(128, 8, 0, i);
-    t5 *= TESTserial_queue(128, 16, 1, i);
-    }*/
-
-  t1 = TESTserial_queue(1, 1, 1, 1);
-  t2 = TESTserial_queue(1024, 1, 1, 1);
-  t3 = TESTserial_queue(1024, 8, 1, 1);
-  t4 = TESTserial_queue(1024, 16, 1, 1);
-  t5 = TESTserial_queue(1024, 16, 0, 1);
+    t2 *= TESTserial_queue(1024, 1, 1, i);
+    t3 *= TESTserial_queue(1024, 8, 1, i);
+    t4 *= TESTserial_queue(1024, 16, 1, i);
+    t5 *= TESTserial_queue(1024, 16, 0, i);
+    }
 
   res(t1, "serial_queue1", "(T = 1, n = 1)");
   res(t2, "serial_queue2", "(T = 1024, n = 1)");
   res(t3, "serial_queue3", "(T = 1024, n = 8)");
   res(t5, "serial_queue4", "(T = 1024, n = 16)");
   res(t4, "serial_queue5", "(T = 1024, n = 16, exp)");
+
+  printf("\nTESTS for Parallel (parallel_firewall.c) \nUnless stated otherwise, [n = 1, D = 32, W = 100]\n\n");
+
+  res(TESTthread(1), "thread1", "(n = 1)");
+  res(TESTthread(8), "thread2", "(n = 8)");
+  res(TESTthr_dequeue(1), "thr_dequeue1", "(T = 1)");
+  res(TESTthr_dequeue(20), "thr_dequeue2", "(T = 20)");
 
   return 0;
 }

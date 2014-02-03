@@ -2,6 +2,10 @@
 
 #define DONE 1000000
 
+// Declare pthread barrier
+pthread_barrier_t b;
+
+
 long *serial_firewall (int numPackets,
 		      int numSources,
 		      long mean,
@@ -39,7 +43,7 @@ long *serial_firewall (int numPackets,
     }
     stopTimer(&watch);
   }
-  printf("%f\n",getElapsedTime(&watch));
+  //printf("%f\n",getElapsedTime(&watch));
   return fingerprint;
 }
 
@@ -153,7 +157,7 @@ long *serial_queue_firewall (int numPackets,
     }   
     stopTimer(&watch);
   }
-  printf("%f\n",getElapsedTime(&watch));
+  //printf("%f\n",getElapsedTime(&watch));
   return fingerprint;
 }
 
@@ -190,7 +194,8 @@ void *thr_dequeue(void *arg) {
   SerialList_t *q = data->q;
   long int *fingerprint = data->fp;
 
-  while (*count != DONE) {
+  while (1) {
+    pthread_barrier_wait(&b);
     while(q->size > 0) {
       Item_t *curr = q->head;
       while (curr->next) {
@@ -200,8 +205,10 @@ void *thr_dequeue(void *arg) {
       *fingerprint += getFingerprint(tmp->iterations, tmp->seed);
       remove_list(q, curr->key);
     }
+    if (*count == DONE) {
+      pthread_exit(NULL);
+    }
   }
-  pthread_exit(NULL);
 }
 
 
@@ -237,6 +244,9 @@ long *parallel_firewall (int numPackets,
 
   // Number of sources finished
   int done = 0;
+
+  // Initialize barrier
+  pthread_barrier_init(&b, NULL, numSources+1);
   
   // Uniform case
   if(uniformFlag) {
@@ -253,6 +263,7 @@ long *parallel_firewall (int numPackets,
 	  done += enqueue(count+i, queues[i], numPackets, queueDepth, packet);
 	}
       }
+      pthread_barrier_wait(&b);
     }       
     stopTimer(&watch);
     
@@ -271,6 +282,7 @@ long *parallel_firewall (int numPackets,
 	  done += enqueue(count+i, queues[i], numPackets, queueDepth, packet);
 	}
       }
+      pthread_barrier_wait(&b);
     }
     stopTimer(&watch);
   }

@@ -60,4 +60,7 @@ pthread_t *thread(int n, int *count, SerialList_t **queues, long int *fingerprin
 /* Thread function: dequeue */
 void *thr_dequeue(void *arg);
 
+/* Declare barrier */
+extern pthread_barrier_t b; 
+
 #endif
