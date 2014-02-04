@@ -207,9 +207,6 @@ int TESTthr_dequeue(int n) {
   long int f1 = 0;
   long int f2 = 0;
 
-  // Initialize barrier
-  pthread_barrier_init(&b, NULL, 2);
-
   pthread_t *t = thread(1, &count1, &queue, &f1);
   
   for (i=0; i < n; i++) {
@@ -229,14 +226,13 @@ int TESTthr_dequeue(int n) {
     }
   }
   count1 = DONE;
-  pthread_barrier_wait(&b); 
 
   pthread_join(*t, NULL);
 
   if (!n) {
-    return compList(queue, test) && (f1 == 0);
+    return (queue->size == 0) && (f1 == 0);
   }
-  return compList(queue, test) && (f1 == f2);
+  return (queue->size == 0) && (f1 == f2);
 }
 
 
@@ -305,8 +301,9 @@ int main() {
 
   res(TESTthread(1), "thread1", "(n = 1)");
   res(TESTthread(8), "thread2", "(n = 8)");
-  //res(TESTthr_dequeue(1), "thr_dequeue1", "(T = 1)");
-  //res(TESTthr_dequeue(20), "thr_dequeue2", "(T = 20)");
+  res(TESTthr_dequeue(1), "thr_dequeue1", "(T = 1)");
+  res(TESTthr_dequeue(20), "thr_dequeue2", "(T = 20)");
+  res(TESTthr_dequeue(32), "thr_dequeue3", "(T = D)");
 
   for (i = 0; i < 1; i++) {
     //t6 *= TESTparallel(1, 1, 1, i);

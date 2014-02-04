@@ -212,12 +212,7 @@ void *thr_dequeue(void *arg) {
 
     if (*count >= DONE) 
       pthread_exit(NULL);
-
-
   }
-
-  pthread_exit(NULL);
-
 }
 
 
