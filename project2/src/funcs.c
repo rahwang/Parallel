@@ -196,9 +196,6 @@ void *thr_dequeue(void *arg) {
 
   while (1){
 
-    if (*count >= DONE) 
-      pthread_exit(NULL);
-
     while(q->size > 0) {
 
       Item_t *curr = q->head;
@@ -212,6 +209,10 @@ void *thr_dequeue(void *arg) {
       remove_list(q, curr->key);
 
     }
+
+    if (*count >= DONE) 
+      pthread_exit(NULL);
+
 
   }
 
@@ -252,12 +253,6 @@ long *parallel_firewall (int numPackets,
 
   // Number of sources finished
   int done = 0;
-
-  // Initialize barrier
-  pthread_barrier_init(&b, NULL, numSources+1);
-
-  // thread_working
-  int working = numSources;
   
   // Uniform case
   if(uniformFlag) {
@@ -274,19 +269,7 @@ long *parallel_firewall (int numPackets,
 	  done += enqueue(count+i, queues[i], numPackets, queueDepth, packet);
 	}
       }
-      pthread_barrier_wait(&b);
     }       
-    /*
-    while (1) {
-      working = 0;
-      for (i = 0; i < numSources; i++) {
-	working += (count[i]/DONE);
-      }
-      if (!working) {
-	break;
-      }
-      pthread_barrier_wait(&b);
-      } */
     stopTimer(&watch);
     
     // Non-uniform case
@@ -304,17 +287,6 @@ long *parallel_firewall (int numPackets,
 	  done += enqueue(count+i, queues[i], numPackets, queueDepth, packet);
 	}
       }
-      pthread_barrier_wait(&b);
-    }
-    while (1) {
-      working = 0;
-      for (i = 0; i < numSources; i++) {
-	working += (count[i]/DONE);
-      }
-      if (!working) {
-	break;
-      }
-      pthread_barrier_wait(&b);
     }
     stopTimer(&watch);
   }

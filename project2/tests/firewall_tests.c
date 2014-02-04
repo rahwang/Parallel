@@ -293,11 +293,6 @@ int main() {
     t3 *= TESTserial_queue(1024, 8, 1, i);
     t4 *= TESTserial_queue(1024, 16, 1, i);
     t5 *= TESTserial_queue(1024, 16, 0, i);
-    //t6 *= TESTparallel(1, 1, 1, i);
-    //t7 *= TESTparallel(1024, 1, 1, i);
-    //t8 *= TESTparallel(1024, 8, 1, i);
-    //t9 *= TESTparallel(1024, 16, 1, i);
-    //t10 *= TESTparallel(1024, 16, 0, i);
   }
 
   res(t1, "serial_queue1", "(T = 1, n = 1)");
@@ -310,6 +305,17 @@ int main() {
 
   res(TESTthread(1), "thread1", "(n = 1)");
   res(TESTthread(8), "thread2", "(n = 8)");
+  //res(TESTthr_dequeue(1), "thr_dequeue1", "(T = 1)");
+  //res(TESTthr_dequeue(20), "thr_dequeue2", "(T = 20)");
+
+  for (i = 0; i < 1; i++) {
+    //t6 *= TESTparallel(1, 1, 1, i);
+    //t7 *= TESTparallel(1024, 1, 1, i);
+    //t8 *= TESTparallel(1024, 8, 1, i);
+    //t9 *= TESTparallel(1024, 16, 1, i);
+    //t10 *= TESTparallel(1024, 16, 0, i);
+  }
+
   //res(TESTthr_dequeue(1), "thr_dequeue1", "(T = 1)");
   //res(TESTthr_dequeue(20), "thr_dequeue2", "(T = 20)");
   //res(t6, "parallel1", "(T = 1, n = 1)");
