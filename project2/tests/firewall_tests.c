@@ -174,18 +174,15 @@ int TESTthread(int n) {
   // Fingerprint destination
   long *fingerprint = (long *)malloc(sizeof(long)*n);
 
-  // Initialize barrier
-  pthread_barrier_init(&b, NULL, n+1);
-
   thr = thread(n, count, queues, fingerprint);
 
   for (i = 0; i < n; i++) {
     if (!thr[i]) {
+      fprintf(stderr, "thread not good\n");
       return 0;
     }
     count[i] = DONE;
   }
-  pthread_barrier_wait(&b);
 
   for (i = 0; i < n; i++) {
     pthread_join(thr[i], NULL);
@@ -193,6 +190,7 @@ int TESTthread(int n) {
   return 1;
 }
     
+
 
 /* TEST thr_dequeue
  * should properly dequeue and get proper fp result
@@ -243,6 +241,30 @@ int TESTthr_dequeue(int n) {
 
 
 
+/* TEST parallel_firewall()
+ * should give the same value as the serial implementation
+ * return 1 on PASS
+ */
+int TESTparallel(int numPackets, int numSources, int uniformFlag, short experimentNumber) {
+  long mean = 100;
+  int queueDepth = 32;
+  int i;
+
+  long *check = serial_firewall(numPackets, numSources, mean, uniformFlag, experimentNumber, queueDepth); 
+
+  long *fingerprint = parallel_firewall(numPackets, numSources, mean, uniformFlag, experimentNumber, queueDepth); 
+
+  for (i = 0; i < numSources; i++) {
+    if (check[i] != fingerprint[i]) {
+      printf("Diffing values:\n check[%i] = %li\n parallel[%i] = %li\n", i, check[i], i, fingerprint[i]); 
+      return 0;
+    }
+  }
+  return 1;
+}
+
+
+
 int main() {
 
   int i;
@@ -271,7 +293,12 @@ int main() {
     t3 *= TESTserial_queue(1024, 8, 1, i);
     t4 *= TESTserial_queue(1024, 16, 1, i);
     t5 *= TESTserial_queue(1024, 16, 0, i);
-    }
+    //t6 *= TESTparallel(1, 1, 1, i);
+    //t7 *= TESTparallel(1024, 1, 1, i);
+    //t8 *= TESTparallel(1024, 8, 1, i);
+    //t9 *= TESTparallel(1024, 16, 1, i);
+    //t10 *= TESTparallel(1024, 16, 0, i);
+  }
 
   res(t1, "serial_queue1", "(T = 1, n = 1)");
   res(t2, "serial_queue2", "(T = 1024, n = 1)");
@@ -279,12 +306,17 @@ int main() {
   res(t5, "serial_queue4", "(T = 1024, n = 16)");
   res(t4, "serial_queue5", "(T = 1024, n = 16, exp)");
 
-  printf("\nTESTS for Parallel (parallel_firewall.c) \nUnless stated otherwise, [n = 1, D = 32, W = 100]\n\n");
+  printf("\n\nTESTS for Parallel (parallel_firewall.c) \nUnless stated otherwise, [n = 1, D = 32, W = 100]\n\n");
 
   res(TESTthread(1), "thread1", "(n = 1)");
   res(TESTthread(8), "thread2", "(n = 8)");
-  res(TESTthr_dequeue(1), "thr_dequeue1", "(T = 1)");
-  res(TESTthr_dequeue(20), "thr_dequeue2", "(T = 20)");
+  //res(TESTthr_dequeue(1), "thr_dequeue1", "(T = 1)");
+  //res(TESTthr_dequeue(20), "thr_dequeue2", "(T = 20)");
+  //res(t6, "parallel1", "(T = 1, n = 1)");
+  //res(t7, "parallel2", "(T = 1024, n = 1)");
+  //res(t8, "parallel3", "(T = 1024, n = 8)");
+  //res(t9, "parallel4", "(T = 1024, n = 16)");
+  //res(t10, "parallel5", "(T = 1024, n = 16, exp)");
 
   return 0;
 }

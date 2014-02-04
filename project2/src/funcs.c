@@ -194,21 +194,29 @@ void *thr_dequeue(void *arg) {
   SerialList_t *q = data->q;
   long int *fingerprint = data->fp;
 
-  while (1) {
-    pthread_barrier_wait(&b);
+  while (1){
+
+    if (*count >= DONE) 
+      pthread_exit(NULL);
+
     while(q->size > 0) {
+
       Item_t *curr = q->head;
+
       while (curr->next) {
 	curr = curr->next;
       }
+
       volatile Packet_t *tmp = curr->value;
       *fingerprint += getFingerprint(tmp->iterations, tmp->seed);
       remove_list(q, curr->key);
+
     }
-    if (*count == DONE) {
-      pthread_exit(NULL);
-    }
+
   }
+
+  pthread_exit(NULL);
+
 }
 
 
@@ -247,6 +255,9 @@ long *parallel_firewall (int numPackets,
 
   // Initialize barrier
   pthread_barrier_init(&b, NULL, numSources+1);
+
+  // thread_working
+  int working = numSources;
   
   // Uniform case
   if(uniformFlag) {
@@ -265,6 +276,17 @@ long *parallel_firewall (int numPackets,
       }
       pthread_barrier_wait(&b);
     }       
+    /*
+    while (1) {
+      working = 0;
+      for (i = 0; i < numSources; i++) {
+	working += (count[i]/DONE);
+      }
+      if (!working) {
+	break;
+      }
+      pthread_barrier_wait(&b);
+      } */
     stopTimer(&watch);
     
     // Non-uniform case
@@ -284,6 +306,16 @@ long *parallel_firewall (int numPackets,
       }
       pthread_barrier_wait(&b);
     }
+    while (1) {
+      working = 0;
+      for (i = 0; i < numSources; i++) {
+	working += (count[i]/DONE);
+      }
+      if (!working) {
+	break;
+      }
+      pthread_barrier_wait(&b);
+    }
     stopTimer(&watch);
   }
 
@@ -292,6 +324,6 @@ long *parallel_firewall (int numPackets,
     pthread_join(thr[i], NULL);
   }
 
-  printf("%f\n",getElapsedTime(&watch));
+  //printf("%f\n",getElapsedTime(&watch));
   return fingerprint;
 }

@@ -25,4 +25,4 @@ $(SQUEUE): $(QOBJS)
 
 clean:
 	-rm -f $(SOBJS) $(POBJS) $(QOBJS) $(SERIAL) $(PARALLEL) $(SQUEUE) *.o
-	-rm -rf *.d
+	-rm -f $(SOBJS) $(POBJS) $(QOBJS) $(SERIAL) $(PARALLEL) $(SQUEUE) Utils/*.d
