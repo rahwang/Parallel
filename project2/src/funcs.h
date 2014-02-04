@@ -13,6 +13,8 @@
 #include "Utils/packetsource.h"
 #include "Utils/seriallist.h"
 
+
+
 /* Run serial-queue firewall */
 long *serial_queue_firewall (int numPackets,
 			    int numSources,
@@ -60,7 +62,6 @@ pthread_t *thread(int n, int *count, SerialList_t **queues, long int *fingerprin
 /* Thread function: dequeue */
 void *thr_dequeue(void *arg);
 
-/* Declare barrier */
-extern pthread_barrier_t b; 
+int q_len(SerialList_t *q);
 
 #endif

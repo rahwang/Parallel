@@ -5,19 +5,20 @@
 #include "packetsource.h"
 
 typedef struct Item {
-	int key;
-	 volatile Packet_t * value;
-	struct Item * next;
+  int key;
+  volatile Packet_t * value;
+  struct Item * next;
 }Item_t;
 
 typedef struct {
-	int size;
-	Item_t * head;
+  int size;
+  Item_t * head;
+  Item_t *tail;
 }SerialList_t;
 
-SerialList_t * createSerialList();
+SerialList_t *createSerialList();
 
-SerialList_t *  createSerialListWithItem(int key,  volatile Packet_t * value);
+SerialList_t *createSerialListWithItem(int key,  volatile Packet_t * value);
 
 Item_t * getItem_list(SerialList_t * list, int key);
 

@@ -6,6 +6,19 @@
 pthread_barrier_t b;
 
 
+/* Get queue length
+ */
+int q_len(SerialList_t *q) {
+  Item_t *curr = q->head;
+  int count = 0;
+  while (curr) {
+    count++;
+    curr = curr->next;
+  }
+  return count;
+}
+
+
 long *serial_firewall (int numPackets,
 		      int numSources,
 		      long mean,
@@ -48,25 +61,32 @@ long *serial_firewall (int numPackets,
 }
 
 
-
 void dequeue(SerialList_t *q, long int *fingerprint) {
-  while(q->size > 0) {
-    Item_t *curr = q->head;
-    while (curr->next) {
+  Item_t *curr = q->head;
+  Item_t *prev = NULL;
+  volatile Packet_t *tmp;
+  if(!curr || !q) {
+    return;
+  }
+  if (q->head != q->tail) {
+     while (curr->next) {
+      prev = curr;
       curr = curr->next;
     }
-    volatile Packet_t *tmp = curr->value;
+    tmp = curr->value;
     *fingerprint += getFingerprint(tmp->iterations, tmp->seed);
     remove_list(q, curr->key);
+    q->tail = prev;
   }
+  return;
 }
 
 
 
 int enqueue(int *count, SerialList_t *q, int numPackets, int depth, volatile Packet_t *packet) {
-  if (q->size == depth) {
+  if (q_len(q) == depth) {
     return 0;
-  }
+  }    
   add_list(q, *count, packet);
   (*count)++;
 
@@ -126,14 +146,17 @@ long *serial_queue_firewall (int numPackets,
     // Enqueue while not all packets have been enqueued
     while (done < numSources) {
       for( i = 0; i < numSources; i++ ) {
-	if ((count[i] < numPackets) && (queues[i]->size < queueDepth)) {
+	if ((count[i] < numPackets+1) && (q_len(queues[i]) < queueDepth+1)) {
 	  volatile Packet_t *packet = getUniformPacket(packetSource,i);
-	  done += enqueue(count+i, queues[i], numPackets, queueDepth, packet);
+	  done += enqueue(count+i, queues[i], numPackets+1, queueDepth+1, packet);
 	}
       }
+
       // Dequeue in each queue
       for( i = 0; i < numSources; i++ ) {
-	dequeue(queues[i], fingerprint+i);
+	while (queues[i]->head != queues[i]->tail) { 
+	  dequeue(queues[i], fingerprint+i);
+	}
       }
     }       
     stopTimer(&watch);
@@ -145,16 +168,19 @@ long *serial_queue_firewall (int numPackets,
     // Enqueue while not all packets have been enqueued
     while (done < numSources) {
       for( i = 0; i < numSources; i++ ) {
-	if ((count[i] < numPackets) && (queues[i]->size < queueDepth)) {
+	if ((count[i] < numPackets+1) && (q_len(queues[i]) < queueDepth+1)) {
 	  volatile Packet_t *packet = getExponentialPacket(packetSource,i);
-	  done += enqueue(count+i, queues[i], numPackets, queueDepth, packet);
+	  done += enqueue(count+i, queues[i], numPackets+1, queueDepth+1, packet);
 	}
       }
+
       // Dequeue in each queue
       for( i = 0; i < numSources; i++ ) {
-	dequeue(queues[i], fingerprint+i);
+	while (queues[i]->head != queues[i]->tail) { 
+	  dequeue(queues[i], fingerprint+i);
+	}
       }
-    }   
+    }       
     stopTimer(&watch);
   }
   //printf("%f\n",getElapsedTime(&watch));
@@ -192,26 +218,15 @@ void *thr_dequeue(void *arg) {
   thr_data_t *data = (thr_data_t *)arg;
   int *count = data->count;
   SerialList_t *q = data->q;
-  long int *fingerprint = data->fp;
-
+  long int *fp = data->fp;
+  
   while (1){
 
-    while(q->size > 0) {
+    dequeue(q, fp);
 
-      Item_t *curr = q->head;
-
-      while (curr->next) {
-	curr = curr->next;
-      }
-
-      volatile Packet_t *tmp = curr->value;
-      *fingerprint += getFingerprint(tmp->iterations, tmp->seed);
-      remove_list(q, curr->key);
-
-    }
-
-    if (*count >= DONE) 
+    if ((*count == DONE) && (q->head == q->tail)) {
       pthread_exit(NULL);
+    }
   }
 }
 
@@ -259,9 +274,9 @@ long *parallel_firewall (int numPackets,
     // Enqueue while not all packets have been enqueued
     while (done < numSources) {
       for( i = 0; i < numSources; i++ ) {
-	if ((count[i] < numPackets) && (queues[i]->size < queueDepth)) {
+	if ((count[i] < numPackets+1) && (q_len(queues[i]) < queueDepth)) {
 	  volatile Packet_t *packet = getUniformPacket(packetSource,i);
-	  done += enqueue(count+i, queues[i], numPackets, queueDepth, packet);
+	  done += enqueue(count+i, queues[i], numPackets+1, queueDepth, packet);
 	}
       }
     }       
@@ -277,9 +292,9 @@ long *parallel_firewall (int numPackets,
     // Enqueue while not all packets have been enqueued
     while (done < numSources) {
       for( i = 0; i < numSources; i++ ) {
-	if ((count[i] < numPackets) && (queues[i]->size < queueDepth)) {
+	if ((count[i] < numPackets+1) && (q_len(queues[i]) < queueDepth)) {
 	  volatile Packet_t *packet = getExponentialPacket(packetSource,i);
-	  done += enqueue(count+i, queues[i], numPackets, queueDepth, packet);
+	  done += enqueue(count+i, queues[i], numPackets+1, queueDepth, packet);
 	}
       }
     }
@@ -294,3 +309,4 @@ long *parallel_firewall (int numPackets,
   //printf("%f\n",getElapsedTime(&watch));
   return fingerprint;
 }
+

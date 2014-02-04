@@ -8,10 +8,12 @@ SerialList_t *  createSerialList()
 	SerialList_t * list = (SerialList_t *)malloc(sizeof(SerialList_t));
 	list->size = 0;
 	list->head = NULL;
+	list->tail = NULL;
 
 	return list;
 }
 
+/* Special behvaior when passed key is -1 */
 SerialList_t *  createSerialListWithItem(int key, volatile Packet_t * value)
 {
 	SerialList_t * list = (SerialList_t *)malloc(sizeof(SerialList_t));
@@ -20,6 +22,7 @@ SerialList_t *  createSerialListWithItem(int key, volatile Packet_t * value)
 	newItem->key = key;
 	newItem->value = value;
 	list->head = newItem;
+	list->tail = newItem;
 
 	return list;
 }
@@ -59,6 +62,9 @@ bool remove_list(SerialList_t * list, int key){
 			if(curr->next->key == key){
 				Item_t * temp = curr->next;
 				curr->next = curr->next->next;
+				if (curr->next == NULL) {
+				  list->tail = curr;
+				}
 				free(temp);
 				list->size--;
 				return true;
@@ -80,6 +86,9 @@ void add_list(SerialList_t * list, int key, volatile Packet_t * value){
 		newItem->value = value;
 		newItem->next = list->head;
 		list->head = newItem;
+		if (list->size == 0) {
+		  list->tail = newItem;
+		}
 		list->size++;
 	}
 }

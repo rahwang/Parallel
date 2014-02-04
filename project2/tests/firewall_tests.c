@@ -105,15 +105,18 @@ int TESTdequeue(int n) {
   long int f1 = 0;
   long int f2 = 0;
 
-  for (i=0; i < n; i++) {
+  for (i=0; i < n+1; i++) {
     volatile Packet_t *packet = getUniformPacket(packetSource,0);
-    enqueue(&count1, test, n, 32, packet);
-    enqueue(&count2, queue, n, 32, packet);
-  }
+    enqueue(&count1, test, n+1, 32+1, packet);
+    enqueue(&count2, queue, n+1, 32+1, packet);
+   }
+
 
   for (i = 0; i < n; i++) {
+
     dequeue(queue, &f1);
-    if (test->size > 0) {
+
+    if (test->size > 1) {
       curr = test->head;
       while (curr->next) {
 	curr = curr->next;
@@ -123,10 +126,12 @@ int TESTdequeue(int n) {
       
     }
   } 
+
   if (!n) {
     return compList(queue, test) && (f1 == 0);
   }
   return compList(queue, test) && (f1 == f2);
+
 }
   
 
@@ -202,37 +207,41 @@ int TESTthr_dequeue(int n) {
   
   SerialList_t *queue = createSerialList();
   SerialList_t *test = createSerialList();
-  Item_t *curr;
+  //Item_t *curr;
   int count1 = 0, count2 = 0;
   long int f1 = 0;
   long int f2 = 0;
 
   pthread_t *t = thread(1, &count1, &queue, &f1);
   
-  for (i=0; i < n; i++) {
+  for (i=0; i < n+1; i++) {
     volatile Packet_t *packet = getUniformPacket(packetSource,0);
-    enqueue(&count2, test, n, 32, packet);
-    enqueue(&count1, queue, n, 32, packet);
+    enqueue(&count2, test, n+1, 32+1, packet);
+    enqueue(&count1, queue, n+1, 32+1, packet);
   }
-  
-  for (i = 0; i < n; i++) {
-    if (test->size > 0) {
-      curr = test->head;
-      while (curr->next) {
-	curr = curr->next;
-      }
-      f2 += getFingerprint((curr->value)->iterations, (curr->value)->seed);
-      remove_list(test, curr->key);
-    }
+
+  for (i=0; i < n; i++) {
+    dequeue(test, &f2);
   }
   count1 = DONE;
 
   pthread_join(*t, NULL);
 
+  int sz = q_len(queue);
+
   if (!n) {
-    return (queue->size == 0) && (f1 == 0);
+    return (sz == 0) && (f1 == 0);
   }
-  return (queue->size == 0) && (f1 == f2);
+  if (sz != 1) {
+    printf("ERROR: Queue is not empty after thr_dequeue(). Size = %i\n", sz);
+    return 0;
+  }
+  if (f1 != f2) {
+    printf("ERROR: thr_dequeue() gives incorrect fingerprint\n");
+    printf("HAVE:%li\nWANT:%li\n", f1, f2);
+    return 0;
+  }
+  return 1;
 }
 
 
@@ -252,7 +261,7 @@ int TESTparallel(int numPackets, int numSources, int uniformFlag, short experime
 
   for (i = 0; i < numSources; i++) {
     if (check[i] != fingerprint[i]) {
-      printf("Diffing values:\n check[%i] = %li\n parallel[%i] = %li\n", i, check[i], i, fingerprint[i]); 
+      printf("Diffing values:\n check[%i] = %li\n paral[%i] = %li\n", i, check[i], i, fingerprint[i]); 
       return 0;
     }
   }
@@ -279,8 +288,10 @@ int main() {
   res(TESTdequeue(32), "dequeue4", "(T = D)");
   res(TESTdequeue(33), "dequeue5", "(T > D)");
 
-  int t1, t2, t3, t4, t5, t6, t7, t8, t9, t10;
-  t1 = t2 = t3 = t4 = t5 = t6 = t7 = t8 = t9 = t10 = 1;
+  int t1, t2, t3, t4, t5;
+  int t6, t7, t8, t9, t10;
+  t1 = t2 = t3 = t4 = t5 = 1;
+  t6 = t7 = t8 = t9 = t10 = 1;
 
   // run multiple trials
   for (i = 0; i < 1; i++) {
@@ -306,20 +317,18 @@ int main() {
   res(TESTthr_dequeue(32), "thr_dequeue3", "(T = D)");
 
   for (i = 0; i < 1; i++) {
-    //t6 *= TESTparallel(1, 1, 1, i);
-    //t7 *= TESTparallel(1024, 1, 1, i);
-    //t8 *= TESTparallel(1024, 8, 1, i);
-    //t9 *= TESTparallel(1024, 16, 1, i);
-    //t10 *= TESTparallel(1024, 16, 0, i);
+    t6 *= TESTparallel(1, 1, 1, i);
+    t7 *= TESTparallel(1024, 1, 1, i);
+    t8 *= TESTparallel(1024, 8, 1, i);
+    t9 *= TESTparallel(1024, 16, 1, i);
+    t10 *= TESTparallel(1024, 16, 0, i);
   }
 
-  //res(TESTthr_dequeue(1), "thr_dequeue1", "(T = 1)");
-  //res(TESTthr_dequeue(20), "thr_dequeue2", "(T = 20)");
-  //res(t6, "parallel1", "(T = 1, n = 1)");
-  //res(t7, "parallel2", "(T = 1024, n = 1)");
-  //res(t8, "parallel3", "(T = 1024, n = 8)");
-  //res(t9, "parallel4", "(T = 1024, n = 16)");
-  //res(t10, "parallel5", "(T = 1024, n = 16, exp)");
-
+  res(t6, "parallel1", "(T = 1, n = 1)");
+  res(t7, "parallel2", "(T = 1024, n = 1)");
+  res(t8, "parallel3", "(T = 1024, n = 8)");
+  res(t9, "parallel4", "(T = 1024, n = 16)");
+  res(t10, "parallel5", "(T = 1024, n = 16, exp)");
+  
   return 0;
 }
