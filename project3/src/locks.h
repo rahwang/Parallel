@@ -41,6 +41,7 @@ typedef struct thr_data_t{
   pthread_mutex_t *mutex;
   volatile alock_t *alock;
   volatile node_t **clh_tail;
+  volatile int my_count;
 } thr_data_t;
 
 

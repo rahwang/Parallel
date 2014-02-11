@@ -59,19 +59,14 @@ void mutex_unlock(pthread_mutex_t *m)
 /* Anderson lock functions */
 void anders_lock(volatile alock_t *a, volatile int *idx) 
 {
-  int curr = __sync_fetch_and_add(a->tail, 4) % a->max;
-  while(1) 
-    {
-      if (__sync_lock_test_and_set((a->array)+curr, 1)) {
-	*idx = curr; 
-	return;
-      }
-    }
+  *idx = __sync_fetch_and_add(a->tail, 4) % a->max;
+  while(!(a->array)[*idx]) {}
 }
 
 void anders_unlock(volatile alock_t *a, volatile int *idx)
 {
-  __sync_lock_test_and_set((a->array)+(*idx), 0);
+  (a->array)[*idx] = 0;
+  (a->array)[(*idx + 4) % a->max] = 1;
 }
 
 
