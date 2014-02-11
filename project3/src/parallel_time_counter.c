@@ -1,4 +1,5 @@
 #include "locks.h"
+#include "time_counter.h"
 
 #define TAS 1
 #define BACK 2
@@ -103,8 +104,16 @@ void *clh(void *arg)
 
 
 /* Spawn workers using the appropriate lock type */
-pthread_t *spawn_time(int type, int n, volatile int *counter, volatile int *state, volatile int *backoff, pthread_mutex_t *m, volatile alock_t *alock, volatile node_t **clh_tail, thr_data_t *data) {
-
+pthread_t *spawn_time(int type,
+                      int n,
+                      volatile int *counter,
+                      volatile int *state,
+                      volatile int *backoff,
+                      pthread_mutex_t *m,
+                      volatile alock_t *alock,
+                      volatile node_t **clh_tail,
+                      thr_data_t *data) 
+{
   int i, rc;
 
   pthread_t *workers = (pthread_t *)malloc(sizeof(pthread_t)*n);
@@ -168,21 +177,11 @@ pthread_t *spawn_time(int type, int n, volatile int *counter, volatile int *stat
 
 /* Launches n worker threads increamenting under 
    the authority of given lock */
-int main(int argc, char *argv[]) 
+int parallel_time(int time, int n, int type)
 {
   int i;
   StopWatch_t watch;
-  
-  // get args
-  if (argc != 4) 
-    {
-      fprintf(stderr, "Error: wrong number of arguments provided. Program expects 1 time argument.");
-      exit(1);
-    }
-  const int time = atoi(argv[1]);
-  const int n = atoi(argv[2]);
-  const int type = atoi(argv[3]);
-  
+    
   // Intialize lock args
   volatile int counter = 0;
   volatile int state = 0;
@@ -245,4 +244,24 @@ int main(int argc, char *argv[])
   
   return 0;
 }
+
+
+int main(int argc, char *argv[])
+{
+  // get args
+  if (argc != 4) 
+    {
+      fprintf(stderr, "Error: wrong number of arguments provided. Program expects 3 arguments.");
+      exit(1);
+    }
+  
+  int time = atoi(argv[1]);
+  int n = atoi(argv[2]);
+  int type = atoi(argv[3]);
+
+  parallel_time(time, n, type);
+  
+  return 0;
+}
+
 

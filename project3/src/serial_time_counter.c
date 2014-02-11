@@ -1,4 +1,5 @@
 #include "locks.h"
+#include "time_counter.h"
 
 int counter;
 volatile int go;
@@ -17,18 +18,11 @@ void *increment() {
 
 /* Launches a single thread which increments the counter with
    wild abandon, free to do so because it is running solo */
-int main(int argc, char *argv[]) {
-
+int serial_time(int time) 
+{
   int rc;
   pthread_t *worker = (pthread_t *)malloc(sizeof(pthread_t));
   StopWatch_t watch;
-
-  if (argc != 2) {
-    fprintf(stderr, "Error: wrong number of arguments provided. Program expects 1 time argument.");
-    exit(1);
-  }
-
-  const int time = atoi(argv[1]);
   
   // Start timing
   startTimer(&watch);
@@ -58,3 +52,17 @@ int main(int argc, char *argv[]) {
   return 0;
 }
   
+
+int main(int argc, char *argv[]) 
+{
+  if (argc != 2) {
+    fprintf(stderr, "Error: wrong number of arguments provided. Program expects 1 time argument.");
+    exit(1);
+  }
+
+  int time = atoi(argv[1]);
+
+  serial_time(time);
+
+  return 0;
+}

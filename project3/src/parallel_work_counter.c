@@ -1,4 +1,5 @@
 #include "locks.h"
+#include "work_counter.h"
 
 #define TAS 1
 #define BACK 2
@@ -100,7 +101,15 @@ void *clh(void *arg)
 
 
 /* Spawn workers using the appropriate lock type */
-pthread_t *spawn_work(int type, int n, int work, volatile int *counter, volatile int *state, volatile int *backoff, pthread_mutex_t *m, volatile alock_t *alock, volatile node_t **clh_tail, thr_data_t *data) {
+pthread_t *spawn_work(int type, int n,
+		      int work, 
+		      volatile int *counter, 
+		      volatile int *state, 
+		      volatile int *backoff, 
+		      pthread_mutex_t *m, 
+		      volatile alock_t *alock, 
+		      volatile node_t **clh_tail, 
+		      thr_data_t *data) {
 
   int i, rc;
 

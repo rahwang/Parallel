@@ -1,4 +1,5 @@
 #include "locks.h"
+#include "work_counter.h"
 
 int counter;
 
