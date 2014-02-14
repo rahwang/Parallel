@@ -3,7 +3,7 @@
 
 /* From serial_time_counter.c */
 void *increment();
-int serial_time(int time);
+int serial_time(unsigned int time);
 
 /* From parallel_time_counter.c */
 void *tas(void *arg);
@@ -20,6 +20,6 @@ pthread_t *spawn_time(int type,
 		      volatile alock_t *alock, 
 		      volatile node_t **clh_tail, 
 		      thr_data_t *data);
-int parallel_time(int time, int n, int type);
+int parallel_time(unsigned int time, int n, int type);
 
 #endif

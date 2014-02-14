@@ -1,12 +1,13 @@
 #include "locks.h"
 #include "time_counter.h"
 
-int counter;
+volatile long long int counter;
 volatile int go;
 
 
 /* Worker thread function: increments a counter */
-void *increment() {
+void *increment() 
+{
   while(go) {
     counter++;
   }
@@ -18,7 +19,7 @@ void *increment() {
 
 /* Launches a single thread which increments the counter with
    wild abandon, free to do so because it is running solo */
-int serial_time(int time) 
+int serial_time(unsigned int time) 
 {
   int rc;
   pthread_t *worker = (pthread_t *)malloc(sizeof(pthread_t));
@@ -37,7 +38,7 @@ int serial_time(int time)
   }
   
   // sleep
-  nanosleep((struct timespec[]){{0, 1000000*time}}, NULL);
+  usleep(time*1000);
 
   // Kill worker
   go = 0;
@@ -46,10 +47,8 @@ int serial_time(int time)
   // Stop timing
   stopTimer(&watch);
 
-  // print counter
-  printf("Counter = %i\n", counter);
 
-  return 0;
+  return counter;
 }
   
 
@@ -60,9 +59,12 @@ int main(int argc, char *argv[])
     exit(1);
   }
 
-  int time = atoi(argv[1]);
+  unsigned int time = (unsigned int)atoi(argv[1]);
 
   serial_time(time);
+
+  // print counter
+  printf("Counter = %lli\n", counter);
 
   return 0;
 }

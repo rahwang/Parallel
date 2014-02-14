@@ -177,7 +177,7 @@ pthread_t *spawn_time(int type,
 
 /* Launches n worker threads increamenting under 
    the authority of given lock */
-int parallel_time(int time, int n, int type)
+int parallel_time(unsigned int time, int n, int type)
 {
   int i;
   StopWatch_t watch;
@@ -216,7 +216,7 @@ int parallel_time(int time, int n, int type)
   pthread_t *workers = spawn_time(type, n, &counter, &state, &backoff, &m, &alock, &clh_tail, data);
   
   // sleep
-  nanosleep((struct timespec[]){{0, 1000000*time}}, NULL);
+  usleep(time*1000);
   
   // Kill worker
   go = 0;
@@ -255,7 +255,7 @@ int main(int argc, char *argv[])
       exit(1);
     }
   
-  int time = atoi(argv[1]);
+  unsigned int time =(unsigned int)atoi(argv[1]);
   int n = atoi(argv[2]);
   int type = atoi(argv[3]);
 
