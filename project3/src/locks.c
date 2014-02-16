@@ -6,67 +6,72 @@
 
 
 /* TAS lock functions */
-void tas_lock(volatile int *state) 
+void tas_lock(volatile lock_t *lock) 
 {
-  while (__sync_lock_test_and_set(state, 1)) {}
+  while (__sync_lock_test_and_set(lock->tas, 1)) {}
 }
 
-void tas_unlock(volatile int *state) 
+void tas_unlock(volatile lock_t *lock) 
 {
-  __sync_lock_test_and_set(state, 0);
+  //__sync_lock_test_and_set(lock->tas, 0);
+  *(lock->tas) = 0;
 }
 
 
 
 /* Exponential Backoff Lock functions */
-void backoff_lock(volatile int *state, volatile int *backoff) 
+void backoff_lock(volatile lock_t *lock) 
 {
   int time;
+  double backoff = 0;
 
   while(1) {
-    while(*state) {};
-    if (!__sync_lock_test_and_set(state, 1)) {
+    if (!__sync_lock_test_and_set(lock->tas, 1)) {
       return;
     } 
     else {
-      time = rand()*fmax(pow(2, (double)*backoff), MAX_DELAY);
-      (*backoff)++;
-      nanosleep((struct timespec[]){{0, 1000000*time}}, NULL);
+      time = rand()*fmax(pow(2, backoff), MAX_DELAY);
+      backoff++;
+      usleep(time);
     }
   }
 }
 
-void backoff_unlock(volatile int *state) 
+void backoff_unlock(volatile lock_t *lock) 
 {
-  __sync_lock_test_and_set(state, 0);
+  //__sync_lock_test_and_set(lock->tas, 0);
+  *(lock->tas) = 0;
 }
 
 
 
 /* Mutex lock functions */
-void mutex_lock(pthread_mutex_t *m) 
+void mutex_lock(volatile lock_t *lock) 
 {
-  pthread_mutex_lock(m);
+  pthread_mutex_lock(lock->mutex);
 }
 
-void mutex_unlock(pthread_mutex_t *m) 
+void mutex_unlock(volatile lock_t *lock) 
 {
-  pthread_mutex_unlock(m);
+  pthread_mutex_unlock(lock->mutex);
 }
 
 
 
 /* Anderson lock functions */
-void anders_lock(volatile alock_t *a, volatile int *idx) 
+void anders_lock(volatile lock_t *lock) 
 {
-  *idx = __sync_fetch_and_add(a->tail, 4) % a->max;
-  while(!(a->array)[*idx]) {}
+  alock_t *a = lock->alock;
+  int idx = __sync_fetch_and_add(a->tail, 4) % a->max;
+  while(!(a->array)[idx]) {}
 }
 
-void anders_unlock(volatile alock_t *a, volatile int *idx)
+void anders_unlock(volatile lock_t *lock)
 {
-  (a->array)[*idx] = 0;
-  (a->array)[(*idx + 4) % a->max] = 1;
+  alock_t *a = lock->alock;
+  (a->array)[*(a->head)] = 0;
+  *(a->head) += 4 % a->max;
+  (a->array)[*(a->head)] = 1;
 }
 
 
@@ -77,19 +82,20 @@ node_t *new_clh_node()
   return (node_t *)malloc(sizeof(node_t));
 }
 
-void clh_lock(volatile clh_t *lock) 
+void clh_lock(volatile lock_t *lock) 
 {
-  volatile node_t *curr = lock->me;
+  clh_t *c = &(lock->clh);
+  volatile node_t *curr = c->me;
   //__sync_lock_test_and_set(&(curr->locked), 1);
   curr->locked = 1;
-  lock->pred = __sync_lock_test_and_set((lock->tail), curr);
-  while ((lock->pred)->locked) {}
+  c->pred = __sync_lock_test_and_set(*(c->tail), curr);
+  while ((c->pred)->locked) {}
 }
 
-void clh_unlock(volatile clh_t *lock) 
+void clh_unlock(volatile lock_t *lock) 
 {
-  volatile node_t *curr = lock->me;
+  clh_t *c = lock->clh;
   //__sync_lock_test_and_set(&(curr->locked), 0);
-  curr->locked = 0;
-  lock->me = lock->pred;
+  (c->me)->locked = 0;
+  c->me = c->pred;
 }

@@ -14,18 +14,17 @@
 #include "Utils/packetsource.h"
 #include "Utils/seriallist.h"
 
-
 typedef struct alock_t{
   volatile int *array;
   volatile int *tail;
-  int max;
+  volatile int *head;
+  int max;  
 } alock_t;
-
 
 typedef struct node_t{
   volatile int locked;
+  volatile struct node_t *pred;
 } node_t;
-
 
 typedef struct clh_t{
   volatile node_t *me;
@@ -33,32 +32,39 @@ typedef struct clh_t{
   volatile node_t **tail;
 } clh_t;
 
+typedef volatile int *tas_t;
+
+typedef volatile pthread_mutex_t *mutex_t;
+
+typedef union lock_t {
+  mutex_t mutex;
+  tas_t tas;
+  clh_t clh;
+  alock_t alock;
+} lock_t;
 
 typedef struct thr_data_t{
-  volatile int *state;
-  volatile int *backoff;
   volatile int *counter;
-  pthread_mutex_t *mutex;
-  volatile alock_t *alock;
-  volatile node_t **clh_tail;
+  volatile lock_t *locks;
   volatile int my_count;
+  void (*lock_f) (lock_t *);
+  void (*unlock_f) (lock_t *);
 } thr_data_t;
 
+void tas_lock(volatile lock_t *lock);
+void tas_unlock(volatile lock_t *lock);
 
-void tas_lock(volatile int *state);
-void tas_unlock(volatile int *state);
+void backoff_lock(volatile lock_t *lock);
+void backoff_unlock(volatile lock_t *lock);
 
-void backoff_lock(volatile int *state, volatile int *backoff);
-void backoff_unlock(volatile int *state);
+void mutex_lock(volatile lock_t *lock);
+void mutex_unlock(volatile lock_t *lock);
 
-void mutex_lock(pthread_mutex_t *m);
-void mutex_unlock(pthread_mutex_t *m);
-
-void anders_lock(volatile alock_t *a, volatile int *idx);
-void anders_unlock(volatile alock_t *a, volatile int *idx);
+void anders_lock(volatile lock_t *lock);
+void anders_unlock(volatile lock_t *lock);
 
 node_t *new_clh_node();
-void clh_lock(volatile clh_t *lock);
-void clh_unlock(volatile clh_t *lock);
+void clh_lock(volatile lock_t *lock);
+void clh_unlock(volatile lock_t *lock);
 
 #endif

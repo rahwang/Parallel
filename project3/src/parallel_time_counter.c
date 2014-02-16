@@ -11,76 +11,21 @@ volatile int go;
 
 
 /* TSA Worker thread function  */
-void *tas(void *arg) {
+void *pincrement(void *arg) {
 
   thr_data_t *data = (thr_data_t *)arg;
   volatile int *counter = data->counter;
+  lock_t *lock = data->lock;
 
   while(go) {
-    tas_lock(data->state);
+    data->lock_f(lock);
     (*counter)++;
-    tas_unlock(data->state);
+    data->unlock_f(lock);
     (data->my_count)++;
   }
 
   pthread_exit(NULL);
 }
-
-
-/* BACKOFF Worker thread function  */
-void *back(void *arg) {
-
-  thr_data_t *data = (thr_data_t *)arg;
-  volatile int *counter = data->counter;
-  
-  while(go) {
-    backoff_lock(data->state, data->backoff);
-    (*counter)++;
-    backoff_unlock(data->state);
-    (data->my_count)++;
-  }
-
-  pthread_exit(NULL);
-}
-
-
-/* MUTEX Worker thread function  */
-void *mutex(void *arg) 
-{
-  thr_data_t *data = (thr_data_t *)arg;
-  volatile int *counter = data->counter;
-
-  
-  while(go) {
-    mutex_lock(data->mutex);
-    (*counter)++;
-    mutex_unlock(data->mutex);
-    (data->my_count)++;
-
-  }
-
-  pthread_exit(NULL);
-}
-
-
-/* ANDERSON Worker thread function  */
-void *anders(void *arg) 
-{
-  thr_data_t *data = (thr_data_t *)arg;
-  volatile int *counter = data->counter;
-  volatile int idx = 0;
-
-  while(go) {
-    anders_lock(data->alock, &idx);
-    (*counter)++;
-    anders_unlock(data->alock, &idx);
-    (data->my_count)++;
-
-  }
-
-  pthread_exit(NULL);
-}
-
 
 /* CLH Worker thread function  */
 void *clh(void *arg) 
@@ -181,11 +126,10 @@ int parallel_time(unsigned int time, int n, int type)
 {
   int i;
   StopWatch_t watch;
-    
+
   // Intialize lock args
   volatile int counter = 0;
   volatile int state = 0;
-  volatile int backoff = 0;
   pthread_mutex_t m;
   pthread_mutex_init(&m, NULL);
   
@@ -202,9 +146,33 @@ int parallel_time(unsigned int time, int n, int type)
   alock.max = n*4;
 
   // Initialize CLH tail
-  volatile node_t *clh_tail = new_clh_node();
+  volatile clh_t clh;
+  clh.tail = &new_clh_node();
   
   thr_data_t *data = (thr_data_t *)malloc(sizeof(thr_data_t)*n);
+
+  // Initialize using switch over type
+  switch (type) {
+
+  case TAS:
+    lock.tas = &state;
+    break;
+  case BACK:
+    lock.tas = &state;
+    break;
+  case MUTEX:
+    lock.mutex = &m;
+    break;
+  case ALOCK:
+    lock.alock = alock;
+    break;
+  case CLH:
+    lock.clh = clh; 
+	exit(1);
+      }
+    }    
+  }
+
 
   // Start timing
   startTimer(&watch);
@@ -213,7 +181,7 @@ int parallel_time(unsigned int time, int n, int type)
   go = 1;
   
   // spawn worker
-  pthread_t *workers = spawn_time(type, n, &counter, &state, &backoff, &m, &alock, &clh_tail, data);
+  pthread_t *workers = spawn_time(type, n, &counter, &lock, data);
   
   // sleep
   usleep(time*1000);
