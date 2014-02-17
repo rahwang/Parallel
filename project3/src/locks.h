@@ -34,21 +34,21 @@ typedef struct clh_t{
 
 typedef volatile int *tas_t;
 
-typedef volatile pthread_mutex_t *mutex_t;
+typedef pthread_mutex_t *mutex_t;
 
 typedef union lock_t {
-  mutex_t mutex;
+  mutex_t m;
   tas_t tas;
   clh_t clh;
-  alock_t alock;
+  alock_t a;
 } lock_t;
 
 typedef struct thr_data_t{
   volatile int *counter;
   volatile lock_t *locks;
   volatile int my_count;
-  void (*lock_f) (lock_t *);
-  void (*unlock_f) (lock_t *);
+  void (*lock_f) (volatile lock_t *);
+  void (*unlock_f) (volatile lock_t *);
 } thr_data_t;
 
 void tas_lock(volatile lock_t *lock);

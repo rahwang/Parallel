@@ -14,7 +14,7 @@ PWORK = pwork
 PACK = packs
 LDLIBS =  -pthread -lrt
 
-all: $(STIME) $(PTIME) $(SWORK) $(PWORK)
+all: $(STIME) $(PTIME) $(SWORK) #$(PWORK)
 #$(PACK)
 
 $(STIME): $(STIME_OBJ) $(UTILS)

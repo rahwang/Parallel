@@ -10,112 +10,39 @@
 volatile int go;
 
 
-/* TSA Worker thread function  */
-void *pincrement(void *arg) {
+/* Worker thread function  */
+void *p_time_work(void *arg) {
 
   thr_data_t *data = (thr_data_t *)arg;
   volatile int *counter = data->counter;
-  lock_t *lock = data->lock;
+  volatile lock_t *locks = data->locks;
+  void (*lockf)(volatile lock_t *) = data->lock_f;
+  void (*unlockf)(volatile lock_t *) = data->unlock_f;
 
   while(go) {
-    data->lock_f(lock);
+    (*lockf)(locks);
     (*counter)++;
-    data->unlock_f(lock);
+    (*unlockf)(locks);
     (data->my_count)++;
   }
 
   pthread_exit(NULL);
 }
-
-/* CLH Worker thread function  */
-void *clh(void *arg) 
-{
-  thr_data_t *data = (thr_data_t *)arg;
-  volatile int *counter = data->counter;
-
-  volatile clh_t lock;
-  lock.me = new_clh_node();
-  lock.tail = data->clh_tail;
-
-  while(go) {
-    clh_lock(&lock);
-    (*counter)++;
-    clh_unlock(&lock);
-    (data->my_count)++;
-  }
-
-  pthread_exit(NULL);
-}
-
 
 /* Spawn workers using the appropriate lock type */
-pthread_t *spawn_time(int type,
-                      int n,
-                      volatile int *counter,
-                      volatile int *state,
-                      volatile int *backoff,
-                      pthread_mutex_t *m,
-                      volatile alock_t *alock,
-                      volatile node_t **clh_tail,
-                      thr_data_t *data) 
+void spawn_time(int type,
+		int n,
+		pthread_t *workers,
+		thr_data_t *data) 
 {
   int i, rc;
-
-  pthread_t *workers = (pthread_t *)malloc(sizeof(pthread_t)*n);
-
-  for (i = 0; i < n; i++) {
-    data[i].counter = counter;
-    data[i].state = state;
-    data[i].backoff = backoff;
-    data[i].mutex = m;
-    data[i].alock = alock;
-    data[i].clh_tail = clh_tail;
-  }
   
-  // spawn workers using correct lock type
-  switch (type) {
-    
-  case TAS:
-    for (i = 0; i < n; i++) {
-      if ((rc = pthread_create(workers+i, NULL, tas, data+i))) {
-	fprintf(stderr, "error: pthread_create, rc: %d\n", rc);
-	exit(1);
-      }
+  for (i=0; i<n;i++) {
+    if ((rc = pthread_create(workers+i, NULL, p_time_work, data+i))) {
+      fprintf(stderr, "error: pthread_create, rc: %d\n", rc);
+      exit(1);
     }
-    break;
-  case BACK:
-    for (i = 0; i < n; i++) {
-      if ((rc = pthread_create(workers+i, NULL, back, data+i))) {
-	fprintf(stderr, "error: pthread_create, rc: %d\n", rc);
-	exit(1);
-      }
-    }
-    break;
-  case MUTEX:
-    for (i = 0; i < n; i++) {
-      if ((rc = pthread_create(workers+i, NULL, mutex, data+i))) {
-	fprintf(stderr, "error: pthread_create, rc: %d\n", rc);
-	exit(1);
-      }
-    }
-    break;
-  case ALOCK:
-    for (i = 0; i < n; i++) {
-      if ((rc = pthread_create(workers+i, NULL, anders, data+i))) {
-	fprintf(stderr, "error: pthread_create, rc: %d\n", rc);
-	exit(1);
-      }
-    }
-    break;
-  case CLH:
-    for (i = 0; i < n; i++) {
-      if ((rc = pthread_create(workers+i, NULL, clh, data+i))) {
-	fprintf(stderr, "error: pthread_create, rc: %d\n", rc);
-	exit(1);
-      }
-    }    
-  }
-  return workers;
+  }  
 }
 
 
@@ -127,53 +54,87 @@ int parallel_time(unsigned int time, int n, int type)
   int i;
   StopWatch_t watch;
 
-  // Intialize lock args
+  // Lock args
   volatile int counter = 0;
-  volatile int state = 0;
+  // TAS args
+  volatile int state;
+  // MUTEX args
   pthread_mutex_t m;
-  pthread_mutex_init(&m, NULL);
-  
   // Initialize alock
-  volatile int *anders = (int *)malloc(sizeof(int)*n*4);
-  anders[0] = 1;
-  for (i = 1; i < n; i++) {
-    anders[i*4] = 0;
-  }
-  volatile int tail = 0;
+  volatile int anders[n*4]; 
+  volatile int tail;
+  volatile int head;
   volatile alock_t alock;
-  alock.array = anders;
-  alock.tail = &tail;
-  alock.max = n*4;
-
   // Initialize CLH tail
-  volatile clh_t clh;
-  clh.tail = &new_clh_node();
+  volatile node_t *p;
   
-  thr_data_t *data = (thr_data_t *)malloc(sizeof(thr_data_t)*n);
+  thr_data_t data[n];
+  pthread_t workers[n];
+  lock_t lock;
+  // Or for clh
+  lock_t c_locks[n];
 
   // Initialize using switch over type
   switch (type) {
 
   case TAS:
+    state = 0;
     lock.tas = &state;
+    for (i = 0; i < n; i++) {
+      data[i].lock_f = &tas_lock;
+      data[i].unlock_f = &tas_unlock;
+      data[i].locks = &lock;
+    }
     break;
   case BACK:
+    state = 0;
     lock.tas = &state;
+    for (i = 0; i < n; i++) {
+      data[i].lock_f = &backoff_lock;
+      data[i].unlock_f = &backoff_unlock;
+      data[i].locks = &lock;
+    }
     break;
   case MUTEX:
-    lock.mutex = &m;
+    pthread_mutex_init(&m, NULL);
+    lock.m = &m;
+    for (i = 0; i < n; i++) {
+      data[i].lock_f = &mutex_lock;
+      data[i].unlock_f = &mutex_unlock;
+      data[i].locks = &lock;
+    }
     break;
   case ALOCK:
-    lock.alock = alock;
+    tail = 1;
+    alock.tail = &tail;
+    alock.head = &head;
+    alock.max = n*4;
+    alock.array = anders;
+    for (i = 0; i < n; i++) {
+      anders[i*4] = 0;
+      data[i].lock_f = &anders_lock;
+      data[i].unlock_f = &anders_unlock;
+      data[i].locks = &lock;
+    }
+    anders[0] = 1;
+    lock.a = alock;
     break;
   case CLH:
-    lock.clh = clh; 
-	exit(1);
-      }
-    }    
+    p = new_clh_node();
+    for (i = 0; i < n; i++) {
+      data[i].lock_f = &clh_lock;
+      data[i].unlock_f = &clh_unlock;
+      data[i].locks = c_locks+i;
+      c_locks[i].clh.me = new_clh_node();
+      c_locks[i].clh.tail = &p;
+    }
+  }  
+
+  for (i=0; i<n; i++) {
+    data[i].counter = &counter;
+    data[i].my_count = 0;
   }
-
-
+		   
   // Start timing
   startTimer(&watch);
   
@@ -181,7 +142,7 @@ int parallel_time(unsigned int time, int n, int type)
   go = 1;
   
   // spawn worker
-  pthread_t *workers = spawn_time(type, n, &counter, &lock, data);
+  spawn_time(type, n, workers, data);
   
   // sleep
   usleep(time*1000);
@@ -197,15 +158,10 @@ int parallel_time(unsigned int time, int n, int type)
   
   // print counter
   printf("Counter = %i\n", counter);
-
   // print thread counters
   for (i = 0; i < n; i++) {
     printf("%i : %i \n", i, data[i].my_count); 
   }
-
-  // Cleanup
-  free(workers);
-  free(data);
 
   // print time
   //printf("%f\n",getElapsedTime(&watch));
