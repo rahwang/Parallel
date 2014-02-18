@@ -16,6 +16,11 @@ void tas_unlock(volatile lock_t *lock)
   *(lock->tas) = 0;
 }
 
+int tas_try(volatile lock_t *lock)
+{ 
+  return __sync_lock_test_and_set(lock->tas, 1);
+}
+
 
 
 /* Exponential Backoff Lock functions */
@@ -42,6 +47,11 @@ void backoff_unlock(volatile lock_t *lock)
   *(lock->tas) = 0;
 }
 
+int backoff_try(volatile lock_t *lock)
+{ 
+  return __sync_lock_test_and_set(lock->tas, 1);
+}
+
 
 
 /* Mutex lock functions */
@@ -53,6 +63,11 @@ void mutex_lock(volatile lock_t *lock)
 void mutex_unlock(volatile lock_t *lock) 
 {
   pthread_mutex_unlock(lock->m);
+}
+
+int mutex_try(volatile lock_t *lock) 
+{
+  return pthread_mutex_trylock(lock->m);
 }
 
 
@@ -72,9 +87,12 @@ void anders_unlock(volatile lock_t *lock)
   ((lock->a).array)[idx] = 0;
   ((lock->a).array)[(idx + 4) % (lock->a).max] = 1;
 }
-
-
-
+/*
+int anders_try(volatile lock_t *lock) 
+{
+ 
+}
+*/
 /* CLH lock functions */
 node_t *new_clh_node()
 {

@@ -1,6 +1,16 @@
 #include "packets.h"
 
-#define DONE 1000000
+#define TAS 1
+#define BACK 2
+#define MUTEX 3
+#define ALOCK 4
+#define CLH 5
+
+#define LOCKFREE 1
+#define HOME 2
+#define RANDOM 3
+#define LAST 4
+#define AWESOME 5
 
 volatile int go;
 
@@ -27,20 +37,21 @@ void *timekeep(void *args)
 }
 
 
-long *serial_pack(unsigned int time,
+int serial_pack(unsigned int time,
 		  int n,
 		  long W,
 		  int uni,
-		  short exp)
+		  short exp,
+		  long *fingerprint)
 {
   PacketSource_t * packetSource = createPacketSource(W, n, exp);
 
   StopWatch_t watch;
   int i, rc;
+  int deqed = 0;
   go = 1;
 
   // Fingerprint destination
-  long *fingerprint = (long *)malloc(sizeof(long)*n);
   for (i = 0; i < n; i++) {
     fingerprint[i] = 0;
   }
@@ -58,6 +69,7 @@ long *serial_pack(unsigned int time,
       for(i = 0; i < n; i++ ) {
 	volatile Packet_t * tmp = getUniformPacket(packetSource,i);
 	fingerprint[i] += getFingerprint(tmp->iterations, tmp->seed);
+	deqed++;
       }
     }
     stopTimer(&watch);
@@ -68,6 +80,7 @@ long *serial_pack(unsigned int time,
       for(i = 0; i < n; i++ ) {
 	volatile Packet_t * tmp = getExponentialPacket(packetSource,i);
 	fingerprint[i] += getFingerprint(tmp->iterations, tmp->seed);
+	deqed++;
       }
     }
     stopTimer(&watch);
@@ -77,23 +90,72 @@ long *serial_pack(unsigned int time,
   pthread_join(timekeeper, NULL);
   
   //printf("%f\n",getElapsedTime(&watch));
-  return fingerprint;
+  return deqed;
 }
 
 
-long *parallel_pack(unsigned int time,
-		    int n,
-		    long W,
-		    int uni,
-		    short exp,
-		    int D,
-		    int type,
-		    int S)
+void packet_spawn(int n, int type, int S, pthread_t *workers, pack_data_t *data) 
+{
+  int i, rc;
+  
+  switch(S) {
+  case(LOCKFREE):
+    for (i = 0; i < n; i++) {
+      if ((rc = pthread_create(workers+i, NULL, lockfree, data+i))) {
+	fprintf(stderr, "error: pthread_create, rc: %d\n", rc);
+	exit(1);
+      }
+    }
+    break;
+  case(HOME):
+    for (i = 0; i < n; i++) {
+      if ((rc = pthread_create(workers+i, NULL, homeq, data+i))) {
+	fprintf(stderr, "error: pthread_create, rc: %d\n", rc);
+	exit(1);
+      }
+    }
+    break;
+  case(RANDOM):
+    for (i = 0; i < n; i++) {
+      if ((rc = pthread_create(workers+i, NULL, randomq, data+i))) {
+	fprintf(stderr, "error: pthread_create, rc: %d\n", rc);
+	exit(1);
+      }
+    }
+    break;
+  case(LAST):
+    for (i = 0; i < n; i++) {
+      if ((rc = pthread_create(workers+i, NULL, lastq, data+i))) {
+	fprintf(stderr, "error: pthread_create, rc: %d\n", rc);
+	exit(1);
+      }
+    }
+    break;
+  case(AWESOME):
+    for (i = 0; i < n; i++) {
+      if ((rc = pthread_create(workers+i, NULL, awesome, data+i))) {
+	fprintf(stderr, "error: pthread_create, rc: %d\n", rc);
+	exit(1);
+      }
+    }
+  }
+}
+  
+
+int parallel_pack(unsigned int time,
+		  int n,
+		  long W,
+		  int uni,
+		  short exp,
+		  int D,
+		  int type,
+		  int S,
+		  long *fingerprint)
 {
   PacketSource_t * packetSource = createPacketSource(W, n, exp);
 
   StopWatch_t watch;
-  int i, rc;
+  int i, j, rc;
   int enqed = 0;
   go = 1;
 
@@ -101,10 +163,96 @@ long *parallel_pack(unsigned int time,
   SerialList_t *queue[n];
 
   // Fingerprint destination
-  long *fingerprint = (long *)malloc(sizeof(long)*n);
   for (i = 0; i < n; i++) {
     fingerprint[i] = 0;
     queue[i] = createSerialList();
+  }
+
+  // TAS args
+  volatile int state[n];
+  // MUTEX args
+  pthread_mutex_t m[n];
+  // Initialize alock
+  volatile int anders[n][n*4]; 
+  volatile int tail[n];
+  volatile int head[n];
+  // Initialize CLH tail
+  volatile node_t *p[n];
+ 
+  pack_data_t data[n];
+  pthread_t workers[n];
+  volatile lock_t *lock = (volatile lock_t *)malloc(sizeof(lock_t)*n);
+  // Or for clh
+  volatile lock_t c_locks[n][n];
+
+  // Initialize using switch over type
+  switch (type) {
+    
+  case TAS:
+    for (i = 0; i < n; i++) {
+      lock[i].tas = state+i;
+      state[i] = 0;
+      data[i].lock_f = &tas_lock;
+      data[i].unlock_f = &tas_unlock;
+      data[i].locks = lock;
+    }
+    break;
+  case BACK:
+    for (i = 0; i < n; i++) {
+      lock[i].tas = state+i;
+      state[i] = 0;
+      data[i].lock_f = &backoff_lock;
+      data[i].unlock_f = &backoff_unlock;
+      data[i].locks = lock;
+    }
+    break;
+  case MUTEX:
+    for (i = 0; i < n; i++) {
+      pthread_mutex_init(m+i, NULL);
+      lock[i].m = m+i;
+      data[i].lock_f = &mutex_lock;
+      data[i].unlock_f = &mutex_unlock;
+      data[i].locks = lock;
+    }
+    break;
+   case ALOCK:
+    for (i = 0; i < n; i++) {
+      anders[i][0] = 1;
+      for (j = 1; j < n; j++) {
+	anders[i][j*4] = 0;
+      }
+      lock[i].a.array = anders[i];
+      tail[i] = 0;
+      lock[i].a.tail = tail+i;
+      lock[i].a.head = head+i;
+      lock[i].a.max = n*4;
+      
+      data[i].lock_f = &anders_lock;
+      data[i].unlock_f = &anders_unlock;
+      data[i].locks = lock;
+    }
+    
+    break;
+  case CLH:
+    for (i = 0; i < n; i++) {
+      p[i] = new_clh_node();
+      data[i].lock_f = &clh_lock;
+      data[i].unlock_f = &clh_unlock;
+      data[i].locks = c_locks[i];
+      for (j = 0; j < n; j++) {
+	c_locks[i][j].clh.me = new_clh_node();
+	c_locks[i][j].clh.tail = p+j;
+      }
+    }
+  }  
+
+  // Fill thread data 
+  for (i = 0; i < n; i++) {
+    data[i].id = i;
+    data[i].n = n;
+    data[i].my_count = 0;
+    data[i].queue = queue;
+    data[i].fingerprint = fingerprint;
   }
 
   // Spawn timer thread
@@ -115,7 +263,7 @@ long *parallel_pack(unsigned int time,
   }
 
   // spawn worker threads
-
+  packet_spawn(n, type, S, workers, data);
 
   if(uni) {
     startTimer(&watch);
@@ -141,12 +289,110 @@ long *parallel_pack(unsigned int time,
   // Kill timekeeper
   pthread_join(timekeeper, NULL);
   
+  // Kill workers
+  int deqed = 0;
+  for (i = 0; i < n; i++) {
+    pthread_join(workers[i], NULL);
+    deqed += data[i].my_count;
+  }
+
+  //printf("TESTING Diff is %i\n", enqed-deqed);
+
   //printf("%f\n",getElapsedTime(&watch));
-  return fingerprint;
+  return enqed-deqed;
 }
 
 
-int dequeue(SerialList_t *q, long int *fingerprint) {
+
+void *lockfree(void *args) 
+{
+  pack_data_t *data = (pack_data_t *)args;
+  SerialList_t **q = data->queue;
+  long int *fp = data->fingerprint;
+  int i = data->id;
+
+  while(go) {
+    (data->my_count) += dequeue(q[i], fp+i);
+  }
+  pthread_exit(NULL);
+}
+
+
+
+void *homeq(void *args) 
+{
+  pack_data_t *data = (pack_data_t *)args;
+  SerialList_t **q = data->queue;
+  long int *fp = data->fingerprint;
+  volatile lock_t *locks = data->locks;
+  void (*lockf)(volatile lock_t *) = data->lock_f;
+  void (*unlockf)(volatile lock_t *) = data->unlock_f;
+  int i = data->id;
+
+  printf("IN\n");
+
+  while(go) {
+    (*lockf)(locks+i);
+    (data->my_count) += dequeue(q[i], fp+i);
+    (*unlockf)(locks+i);
+  }
+  printf("OUT\n");
+
+  pthread_exit(NULL);
+}
+
+
+void *randomq(void *args) 
+{
+  pack_data_t *data = (pack_data_t *)args;
+  SerialList_t **q = data->queue;
+  long int *fp = data->fingerprint;
+  volatile lock_t *locks = data->locks;
+  void (*lockf)(volatile lock_t *) = data->lock_f;
+  void (*unlockf)(volatile lock_t *) = data->unlock_f;
+  int i;
+
+  while(go) {
+    i = rand() % data->n;
+    (*lockf)(locks+i);
+    (data->my_count) += dequeue(q[i], fp+i);
+    (*unlockf)(locks+i);
+  }
+  pthread_exit(NULL);
+}
+
+
+void *lastq(void *args)
+{
+  pack_data_t *data = (pack_data_t *)args;
+  SerialList_t **q = data->queue;
+  long int *fp = data->fingerprint;
+  int i;
+
+  while(go) {
+    i = rand() % data->n;
+    (data->my_count) += dequeue(q[i], fp+i);
+  }
+  pthread_exit(NULL);
+}
+
+void *awesome(void *args)
+{
+  pack_data_t *data = (pack_data_t *)args;
+  SerialList_t **q = data->queue;
+  long int *fp = data->fingerprint;
+  int i;
+
+  while(go) {
+    i = rand() % data->n;
+    (data->my_count) += dequeue(q[i], fp+i);
+  }
+  pthread_exit(NULL);
+}
+
+
+int dequeue(SerialList_t *q, long int *fingerprint) 
+{
   Item_t *curr = q->head;
   Item_t *prev = NULL;
   volatile Packet_t *tmp;

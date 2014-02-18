@@ -1,7 +1,7 @@
 #include "locks.h"
 #include "work_counter.h"
 
-volatile long long int scounter;
+volatile long int scounter;
 
 #define TAS 1
 #define BACK 2

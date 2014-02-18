@@ -16,7 +16,9 @@ int main(int argc, char *argv[])
   int uni = atoi(argv[4]);
   short exp = atoi(argv[5]);
 
-  serial_pack(time, n, W, uni, exp);
+  long *fingerprint = (long *)malloc(sizeof(long)*n);
+
+  serial_pack(time, n, W, uni, exp, fingerprint);
   
   return 0;
 }

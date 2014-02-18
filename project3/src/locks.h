@@ -51,6 +51,17 @@ typedef struct thr_data_t{
   void (*unlock_f) (volatile lock_t *);
 } thr_data_t;
 
+typedef struct pack_data_t{
+  volatile int id;
+  volatile int n;
+  volatile lock_t *locks;
+  volatile int my_count;
+  long int*fingerprint;
+  SerialList_t **queue;
+  void (*lock_f) (volatile lock_t *);
+  void (*unlock_f) (volatile lock_t *);
+} pack_data_t;
+
 void tas_lock(volatile lock_t *lock);
 void tas_unlock(volatile lock_t *lock);
 

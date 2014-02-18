@@ -4,7 +4,7 @@
 int main(int argc, char *argv[])
 {
   // get args
-  if (argc != 7) 
+  if (argc != 9) 
     {
       fprintf(stderr, "Error: wrong number of arguments provided. Program expects 8 arguments.");
       exit(1);
@@ -19,7 +19,9 @@ int main(int argc, char *argv[])
   int type = atoi(argv[7]);
   int S = atoi(argv[8]);
 
-  parallel_pack(time, n, W, uni, exp, D, type, S);
+  long *fingerprint = (long *)malloc(sizeof(long)*n);
+
+  parallel_pack(time, n, W, uni, exp, D, type, S, fingerprint);
   
   return 0;
 }

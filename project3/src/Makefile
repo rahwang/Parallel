@@ -16,7 +16,7 @@ SPACK = spack
 PPACK = ppack
 LDLIBS =  -pthread -lrt
 
-all: $(STIME) $(PTIME) $(SWORK) $(PWORK) $(SPACK)
+all: $(STIME) $(PTIME) $(SWORK) $(PWORK) $(SPACK) $(PPACK)
 
 $(STIME): $(STIME_OBJ) $(UTILS)
 	$(CC) $(LDFLAGS) $(LDLIBS) $(STIME_OBJ) $(UTILS) -o $(STIME) -lm

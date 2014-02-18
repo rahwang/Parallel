@@ -1,7 +1,7 @@
 UTILS = ../src/Utils/stopwatch.o ../src/Utils/generators.o ../src/Utils/fingerprint.o ../src/Utils/seriallist.o ../src/Utils/hashgenerator.o ../src/Utils/crc32.o ../src/Utils/hashpackettest.o ../src/Utils/hashpacketworker.o ../src/Utils/hashtable.o ../src/Utils/packetsource.o ../src/Utils/paddedprim.o ../src/Utils/statistics.o ../src/locks.o
 COUNT_OBJ = ../src/work_counter.o ../src/time_counter.o
 TEST_OBJ = test_locks.o
-PACK_OBJ = 
+PACK_OBJ = ../src/packets.o
 DEPS = $(OBJS:.o=.d)
 CC = gcc
 CFLAGS = -Werror -I../../include -g3 -Wall -fpic -std=gnu99 -MMD -MP -DDEBUG -O
@@ -11,8 +11,8 @@ LDLIBS =  -pthread -lrt
 all: $(TEST)
 #$(PACK)
 
-$(TEST): $(TEST_OBJ) $(COUNT_OBJ) $(UTILS)
-	$(CC) $(LDFLAGS) $(LDLIBS) $(TEST_OBJ) $(COUNT_OBJ) $(UTILS) -o $(TEST) -lm
+$(TEST): $(TEST_OBJ) $(COUNT_OBJ) $(PACK_OBJ) $(UTILS)
+	$(CC) $(LDFLAGS) $(LDLIBS) $(TEST_OBJ) $(PACK_OBJ) $(COUNT_OBJ) $(UTILS) -o $(TEST) -lm
 
 %.d: %.c
 
