@@ -60,18 +60,17 @@ void mutex_unlock(volatile lock_t *lock)
 /* Anderson lock functions */
 void anders_lock(volatile lock_t *lock) 
 {
-  alock_t a = lock->a;
-  int idx = __sync_fetch_and_add(a.tail, 4) % a.max;
-  while(!(a.array)[idx]) {}
-  *(a.head) = idx;
+  //alock_t a = lock->a;
+  int idx = __sync_fetch_and_add((lock->a).tail, 4) % (lock->a).max;
+  while(!((lock->a).array)[idx]) {}
+  *((lock->a).head) = idx;
 }
 
 void anders_unlock(volatile lock_t *lock)
 {
-  alock_t a = lock->a;
-  //int idx = *(a.head);
-  (a.array)[idx] = 0;
-  (a.array)[(idx + 4) % a.max] = 1;
+  int idx = *((lock->a).head);
+  ((lock->a).array)[idx] = 0;
+  ((lock->a).array)[(idx + 4) % (lock->a).max] = 1;
 }
 
 
@@ -84,17 +83,16 @@ node_t *new_clh_node()
 
 void clh_lock(volatile lock_t *lock) 
 {
-  clh_t c = lock->clh;
-  volatile node_t *curr = c.me;
-  volatile node_t *tail = *(c.tail);
+  //clh_t c = lock->clh;
+  volatile node_t *curr = (lock->clh).me;
   curr->locked = 1;
-  c.pred = __sync_lock_test_and_set(&tail, &curr);
-  while ((c.pred)->locked) {}
+  (lock->clh).pred = __sync_lock_test_and_set(((lock->clh).tail), curr);
+  while (((lock->clh).pred)->locked) {}
 }
 
 void clh_unlock(volatile lock_t *lock) 
 {
-  clh_t c = lock->clh;
-  (c.me)->locked = 0;
-  c.me = c.pred;
+  //clh_t c = lock->clh;
+  ((lock->clh).me)->locked = 0;
+  (lock->clh).me = (lock->clh).pred;
 }

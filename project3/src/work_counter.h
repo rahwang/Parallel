@@ -1,8 +1,10 @@
 #ifndef WORK_COUNTER_H
 #define WORK_COUNTER_H
 
+#include "locks.h"
+
 /* From serial_work_counter.c */
-void *increment();
+void *s_work_worker();
 int serial_work(int work);
 
 /* From parallel_work_counter.c */
@@ -11,15 +13,9 @@ void *back(void *arg);
 void *mutex(void *arg);
 void *anders(void *arg);
 void *clh(void *arg);
-pthread_t *spawn_work(int type, 
+void spawn_work(int type, 
 		      int n, 
-		      int work,
-		      volatile int *counter, 
-		      volatile int *state, 
-		      volatile int *backoff, 
-		      pthread_mutex_t *m, 
-		      volatile alock_t *alock, 
-		      volatile node_t **clh_tail, 
+		      pthread_t *workers,
 		      thr_data_t *data);
 int parallel_work(int work, int n, int type);
 

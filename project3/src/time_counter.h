@@ -1,8 +1,10 @@
 #ifndef TIME_COUNTER_H
 #define TIME_COUNTER_H
 
+#include "locks.h"
+
 /* From serial_time_counter.c */
-void *increment();
+void *s_time_worker();
 int serial_time(unsigned int time);
 
 /* From parallel_time_counter.c */
