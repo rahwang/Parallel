@@ -14,21 +14,19 @@ void *randomq(void *args);
 void *lastq(void *args); 
 void *awesome(void *args);
  
-int serial_pack(unsigned int time,
-		  int n,
-		  long W,
-		  int uni,
-		  short exp,
-		  long *fingerprint);
+long *serial_pack(unsigned int time,
+		int n,
+		long W,
+		int uni,
+		short exp);
 
-int parallel_pack(unsigned int time,
+pack_data_t *parallel_pack(unsigned int time,
 		    int n,
 		    long W,
 		    int uni,
 		    short exp,
 		    int D,
 		    int type,
-		    int S,
-		    long *fingerprint);
+		    int S);
 
 #endif

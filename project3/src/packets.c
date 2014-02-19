@@ -37,12 +37,11 @@ void *timekeep(void *args)
 }
 
 
-int serial_pack(unsigned int time,
-		  int n,
-		  long W,
-		  int uni,
-		  short exp,
-		  long *fingerprint)
+long *serial_pack(unsigned int time,
+		int n,
+		long W,
+		int uni,
+		short exp)
 {
   PacketSource_t * packetSource = createPacketSource(W, n, exp);
 
@@ -52,6 +51,7 @@ int serial_pack(unsigned int time,
   go = 1;
 
   // Fingerprint destination
+  long *fingerprint = (long *)malloc(sizeof(long)*n);
   for (i = 0; i < n; i++) {
     fingerprint[i] = 0;
   }
@@ -90,7 +90,10 @@ int serial_pack(unsigned int time,
   pthread_join(timekeeper, NULL);
   
   //printf("%f\n",getElapsedTime(&watch));
-  return deqed;
+  if (deqed < 0) {
+    return NULL;
+  }
+  return fingerprint;
 }
 
 
@@ -142,15 +145,14 @@ void packet_spawn(int n, int type, int S, pthread_t *workers, pack_data_t *data)
 }
   
 
-int parallel_pack(unsigned int time,
+pack_data_t *parallel_pack(unsigned int time,
 		  int n,
 		  long W,
 		  int uni,
 		  short exp,
 		  int D,
 		  int type,
-		  int S,
-		  long *fingerprint)
+		  int S)
 {
   PacketSource_t * packetSource = createPacketSource(W, n, exp);
 
@@ -163,6 +165,7 @@ int parallel_pack(unsigned int time,
   SerialList_t *queue[n];
 
   // Fingerprint destination
+  long *fingerprint = (long *)malloc(sizeof(long)*n);
   for (i = 0; i < n; i++) {
     fingerprint[i] = 0;
     queue[i] = createSerialList();
@@ -179,7 +182,7 @@ int parallel_pack(unsigned int time,
   // Initialize CLH tail
   volatile node_t *p[n];
  
-  pack_data_t data[n];
+  pack_data_t *data = (pack_data_t *)malloc(sizeof(pack_data_t)*n);
   pthread_t workers[n];
   volatile lock_t *lock = (volatile lock_t *)malloc(sizeof(lock_t)*n);
   // Or for clh
@@ -236,6 +239,7 @@ int parallel_pack(unsigned int time,
   case CLH:
     for (i = 0; i < n; i++) {
       p[i] = new_clh_node();
+      p[i]->locked = 0;
       data[i].lock_f = &clh_lock;
       data[i].unlock_f = &clh_unlock;
       data[i].locks = c_locks[i];
@@ -264,6 +268,10 @@ int parallel_pack(unsigned int time,
 
   // spawn worker threads
   packet_spawn(n, type, S, workers, data);
+  
+  int enq[n];
+  for (i = 0; i < n; i++)
+    enq[i] = 0;
 
   if(uni) {
     startTimer(&watch);
@@ -271,6 +279,7 @@ int parallel_pack(unsigned int time,
       for(i = 0; i < n; i++ ) {
 	volatile Packet_t * tmp = getUniformPacket(packetSource,i);
 	enqed += enqueue(queue[i], D, tmp, enqed); 
+	enq[i]++;
       }
     }
     stopTimer(&watch);
@@ -293,13 +302,19 @@ int parallel_pack(unsigned int time,
   int deqed = 0;
   for (i = 0; i < n; i++) {
     pthread_join(workers[i], NULL);
+    //printf("%i : %i...... from %i \n", i, data[i].my_count, enq[i]); 
     deqed += data[i].my_count;
   }
-
+  //printf("Total = %i\n", enqed);
+  //printf("Counter = %i\n", deqed);
   //printf("TESTING Diff is %i\n", enqed-deqed);
 
   //printf("%f\n",getElapsedTime(&watch));
-  return enqed-deqed;
+  
+  if (enqed-deqed < 0) {
+    return NULL;
+  }
+  return data;
 }
 
 
@@ -329,14 +344,11 @@ void *homeq(void *args)
   void (*unlockf)(volatile lock_t *) = data->unlock_f;
   int i = data->id;
 
-  printf("IN\n");
-
   while(go) {
     (*lockf)(locks+i);
     (data->my_count) += dequeue(q[i], fp+i);
     (*unlockf)(locks+i);
   }
-  printf("OUT\n");
 
   pthread_exit(NULL);
 }

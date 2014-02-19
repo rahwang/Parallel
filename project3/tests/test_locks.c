@@ -15,6 +15,8 @@
 #define ALOCK 4
 #define CLH 5
 
+int trials;
+
 /* Format test results into pretty print statement */
 void res(int pass, char *test, char *arg) 
 {
@@ -33,7 +35,7 @@ int TESTcounter(int type, int n)
 {
   int i;
   int sum = 0;
-  for (i = 0; i<20; i++) {
+  for (i = 0; i<trials; i++) {
     sum = parallel_time(10, n, type);
     if (sum) {
       printf("Error: time counter returned incorrect value\n");
@@ -52,12 +54,15 @@ int TESTcounter(int type, int n)
 int TESTspack(int n)
 {
   //long *fingerprint = (long *)malloc(sizeof(long)*n);
-  long fingerprint[n];
+  long *fingerprint;
 
-  if (0 > serial_pack(10, n, 100, 1, 1, fingerprint)) {
+  fingerprint = serial_pack(10, n, 100, 1, 1);
+  if (!fingerprint) {
+    printf("Error: serial packets dequeued more packets than enqueued\n");
+    free(fingerprint);
     return 0;
   }
-
+  free(fingerprint);
   return 1;
 }
 
@@ -66,22 +71,32 @@ int TESTpack(int type, int n, int S)
 {
   int i;
   //long *fingerprint = (long *)malloc(sizeof(long)*n);
-  long fingerprint[n];
+  pack_data_t *data;
 
-  for (i = 0; i < 20; i++) {
-    if (0 > parallel_pack(1, n, 100, 1, 1, 8, type, S, fingerprint)) {
+  for (i = 0; i < trials; i++) {
+    data = parallel_pack(1, n, 100, 1, 1, 8, type, S);
+    if (!data) {
+      printf("Error: parallel packets dequeued more packets than enqueued\n");
+      free(data);
       return 0;
     }
+    free(data);
   }
-
   return 1;
 }
 
+int TESTdistribution(int n)
+{
+  //int i;
+  return 0;
+}
 
 int main() 
 {
+  trials = 10;
+
   printf("\nRunning counter tests (both work and time):\n\n");
-  
+    
   res(TESTcounter(1, 1), "TAS 1", "(n = 1)");
   res(TESTcounter(1, 16), "TAS 2", "(n = 16)");
   res(TESTcounter(2, 1), "BACKOFF 1", "(n = 1)");
@@ -92,26 +107,26 @@ int main()
   res(TESTcounter(4, 16), "ANDERSON 2", "(n = 16)");
   res(TESTcounter(5, 1), "CLH 1", "(n = 1)");
   res(TESTcounter(5, 16), "CLH 2", "(n = 16)");
- 
+  
   printf("\nRunning packets tests:\n\n");
 
   res(TESTspack(1), "SERIAL 1", "(n = 1)");
   res(TESTspack(4), "SERIAL 2", "(n = 4)");
   printf("---\n");
   res(TESTpack(1, 1, 1), "LOCKFREE 1", "(S = 1, n = 1)");
-  res(TESTpack(1, 4, 1), "LOCKFREE 2", "(S = 1, n = 4)");
-  printf("---\n");/*
-  res(TESTpack(1, 1, 2), "HOMEQ__TAS 1", "(L = 1, S = 2, n = 1)");
-  res(TESTpack(1, 4, 2), "HOMEQ__TAS 2", "(L = 1, S = 2, n = 4)");
-  res(TESTpack(2, 1, 2), "HOMEQ_BACK 1", "(L = 2, S = 2, n = 1)");
-  res(TESTpack(2, 4, 2), "HOMEQ_BACK 2", "(L = 2, S = 2, n = 4)");
-  res(TESTpack(3, 1, 2), "HOMEQ_MUTX 1", "(L = 3, S = 2, n = 1)");
-  res(TESTpack(3, 4, 2), "HOMEQ_MUTX 2", "(L = 3, S = 2, n = 4)");
-  res(TESTpack(4, 1, 2), "HOMEQ_ANDS 1", "(L = 4, S = 2, n = 1)");
-  res(TESTpack(4, 4, 2), "HOMEQ_ANDS 2", "(L = 4, S = 2, n = 4)");
-  res(TESTpack(5, 1, 2), "HOMEQ__CLH 1", "(L = 5, S = 2, n = 1)");
-  res(TESTpack(5, 4, 2), "HOMEQ__CLH 2", "(L = 5, S = 2, n = 4)");
+  res(TESTpack(1, 16, 1), "LOCKFREE 2", "(S = 1, n = 16)");
   printf("---\n");
+  res(TESTpack(1, 1, 2), "HOMEQ__TAS 1", "(L = 1, S = 2, n = 1)");
+  res(TESTpack(1, 16, 2), "HOMEQ__TAS 2", "(L = 1, S = 2, n = 16)");
+  res(TESTpack(2, 1, 2), "HOMEQ_BACK 1", "(L = 2, S = 2, n = 1)");
+  res(TESTpack(2, 16, 2), "HOMEQ_BACK 2", "(L = 2, S = 2, n = 16)");
+  res(TESTpack(3, 1, 2), "HOMEQ_MUTX 1", "(L = 3, S = 2, n = 1)");
+  res(TESTpack(3, 16, 2), "HOMEQ_MUTX 2", "(L = 3, S = 2, n = 16)");
+  res(TESTpack(4, 1, 2), "HOMEQ_ANDS 1", "(L = 4, S = 2, n = 1)");
+  res(TESTpack(4, 16, 2), "HOMEQ_ANDS 2", "(L = 4, S = 2, n = 16)");
+  res(TESTpack(5, 1, 2), "HOMEQ__CLH 1", "(L = 5, S = 2, n = 1)");
+  res(TESTpack(5, 16, 2), "HOMEQ__CLH 2", "(L = 5, S = 2, n = 16)");
+  printf("---\n");/*
   res(TESTpack(1, 1, 2), "RANDQ__TAS 1", "(L = 1, S = 2, n = 1)");
   res(TESTpack(1, 4, 2), "RANDQ__TAS 2", "(L = 1, S = 2, n = 4)");
   res(TESTpack(2, 1, 2), "RANDQ_BACK 1", "(L = 2, S = 2, n = 1)");
