@@ -100,6 +100,11 @@ int parallel_work(int work, int n, int type)
   int i;
   StopWatch_t watch;
 
+  if (work % n != 0) {
+    fprintf(stderr, "Error: work is not divisible by number of worker threads.");
+    exit(1);
+  }  
+
   // Lock args
   volatile int counter = 0;
   // TAS args
@@ -167,6 +172,7 @@ int parallel_work(int work, int n, int type)
     break;
   case CLH:
     p = new_clh_node();
+    p->locked = 0;
     for (i = 0; i < n; i++) {
       data[i].lock_f = &clh_lock;
       data[i].unlock_f = &clh_unlock;

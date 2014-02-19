@@ -102,15 +102,17 @@ node_t *new_clh_node()
 void clh_lock(volatile lock_t *lock) 
 {
   //clh_t c = lock->clh;
-  volatile node_t *curr = (lock->clh).me;
-  curr->locked = 1;
-  (lock->clh).pred = __sync_lock_test_and_set(((lock->clh).tail), curr);
+  //volatile node_t *curr = (lock->clh).me;
+  (lock->clh).me->locked = 1;
+  (lock->clh).pred = __sync_lock_test_and_set((lock->clh).tail, (lock->clh).me);
   while (((lock->clh).pred)->locked) {}
 }
 
 void clh_unlock(volatile lock_t *lock) 
 {
   //clh_t c = lock->clh;
+  volatile node_t *tmp = (lock->clh).pred;
   ((lock->clh).me)->locked = 0;
-  (lock->clh).me = (lock->clh).pred;
+  (lock->clh).me = tmp;
+  //(lock->clh).me = (lock->clh).pred;
 }

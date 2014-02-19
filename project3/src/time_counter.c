@@ -171,6 +171,7 @@ int parallel_time(unsigned int time, int n, int type)
     break;
   case CLH:
     p = new_clh_node();
+    p->locked = 0;
     for (i = 0; i < n; i++) {
       data[i].lock_f = &clh_lock;
       data[i].unlock_f = &clh_unlock;
