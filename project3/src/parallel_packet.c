@@ -19,9 +19,7 @@ int main(int argc, char *argv[])
   int type = atoi(argv[7]);
   int S = atoi(argv[8]);
 
-  long *fingerprint = (long *)malloc(sizeof(long)*n);
-
-  parallel_pack(time, n, W, uni, exp, D, type, S, fingerprint);
+  parallel_pack(time, n, W, uni, exp, D, type, S);
   
   return 0;
 }
