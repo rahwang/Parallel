@@ -197,6 +197,7 @@ pack_data_t *parallel_pack(unsigned int time,
       state[i] = 0;
       data[i].lock_f = &tas_lock;
       data[i].unlock_f = &tas_unlock;
+      data[i].try_f = &tas_try;
       data[i].locks = lock;
     }
     break;
@@ -206,6 +207,7 @@ pack_data_t *parallel_pack(unsigned int time,
       state[i] = 0;
       data[i].lock_f = &backoff_lock;
       data[i].unlock_f = &backoff_unlock;
+      data[i].try_f = &backoff_try;
       data[i].locks = lock;
     }
     break;
@@ -215,6 +217,7 @@ pack_data_t *parallel_pack(unsigned int time,
       lock[i].m = m+i;
       data[i].lock_f = &mutex_lock;
       data[i].unlock_f = &mutex_unlock;
+      data[i].try_f = &mutex_try;
       data[i].locks = lock;
     }
     break;
@@ -232,6 +235,7 @@ pack_data_t *parallel_pack(unsigned int time,
       
       data[i].lock_f = &anders_lock;
       data[i].unlock_f = &anders_unlock;
+      data[i].try_f = &anders_try;
       data[i].locks = lock;
     }
     
@@ -242,6 +246,7 @@ pack_data_t *parallel_pack(unsigned int time,
       p[i]->locked = 0;
       data[i].lock_f = &clh_lock;
       data[i].unlock_f = &clh_unlock;
+      data[i].try_f = &clh_try;
       data[i].locks = c_locks[i];
       for (j = 0; j < n; j++) {
 	c_locks[i][j].clh.me = new_clh_node();
@@ -269,17 +274,12 @@ pack_data_t *parallel_pack(unsigned int time,
   // spawn worker threads
   packet_spawn(n, type, S, workers, data);
   
-  int enq[n];
-  for (i = 0; i < n; i++)
-    enq[i] = 0;
-
   if(uni) {
     startTimer(&watch);
     while(go) {
       for(i = 0; i < n; i++ ) {
 	volatile Packet_t * tmp = getUniformPacket(packetSource,i);
-	enqed += enqueue(queue[i], D, tmp, enqed); 
-	enq[i]++;
+	enqed += enqueue(queue[i], D, tmp, enqed);
       }
     }
     stopTimer(&watch);
@@ -305,9 +305,7 @@ pack_data_t *parallel_pack(unsigned int time,
     //printf("%i : %i...... from %i \n", i, data[i].my_count, enq[i]); 
     deqed += data[i].my_count;
   }
-  //printf("Total = %i\n", enqed);
-  //printf("Counter = %i\n", deqed);
-  //printf("TESTING Diff is %i\n", enqed-deqed);
+  //printf("Total = %i\nCounter = %i\nDiff = %i\n", enqed, deqed, enqed-deqed);
 
   //printf("%f\n",getElapsedTime(&watch));
   
@@ -379,14 +377,22 @@ void *lastq(void *args)
   pack_data_t *data = (pack_data_t *)args;
   SerialList_t **q = data->queue;
   long int *fp = data->fingerprint;
-  int i;
+  volatile lock_t *locks = data->locks;
+  void (*unlockf)(volatile lock_t *) = data->unlock_f;
+  int (*tryf)(volatile lock_t *) = data->try_f;
+  int i = rand() % data->n;
+
 
   while(go) {
-    i = rand() % data->n;
+    while((*tryf)(locks+i)) {
+      i = rand() % data->n;
+    }
     (data->my_count) += dequeue(q[i], fp+i);
+    (*unlockf)(locks+i);
   }
   pthread_exit(NULL);
 }
+
 
 void *awesome(void *args)
 {

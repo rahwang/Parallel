@@ -16,6 +16,7 @@ void tas_unlock(volatile lock_t *lock)
   *(lock->tas) = 0;
 }
 
+// Attempts to acquire lock. Returns 0 on success.
 int tas_try(volatile lock_t *lock)
 { 
   return __sync_lock_test_and_set(lock->tas, 1);
@@ -47,6 +48,7 @@ void backoff_unlock(volatile lock_t *lock)
   *(lock->tas) = 0;
 }
 
+// Attempts to acquire lock. Returns 0 on success.
 int backoff_try(volatile lock_t *lock)
 { 
   return __sync_lock_test_and_set(lock->tas, 1);
@@ -65,6 +67,7 @@ void mutex_unlock(volatile lock_t *lock)
   pthread_mutex_unlock(lock->m);
 }
 
+// Attempts to acquire lock. Returns 0 on success.
 int mutex_try(volatile lock_t *lock) 
 {
   return pthread_mutex_trylock(lock->m);
@@ -87,12 +90,22 @@ void anders_unlock(volatile lock_t *lock)
   ((lock->a).array)[idx] = 0;
   ((lock->a).array)[(idx + 4) % (lock->a).max] = 1;
 }
-/*
+
+// Attempts to acquire lock. Returns 0 on success.
 int anders_try(volatile lock_t *lock) 
 {
- 
+  //alock_t a = lock->a;
+  int max = (lock->a).max;
+  volatile int *tail = (lock->a).tail;
+
+  if ((lock->a).array[*tail % max]) {
+    anders_lock(lock);
+    return 0;
+  } 
+  return 1;
 }
-*/
+
+
 /* CLH lock functions */
 node_t *new_clh_node()
 {
@@ -115,4 +128,13 @@ void clh_unlock(volatile lock_t *lock)
   ((lock->clh).me)->locked = 0;
   (lock->clh).me = tmp;
   //(lock->clh).me = (lock->clh).pred;
+}
+
+int clh_try(volatile lock_t *lock)
+{
+  if ((*((lock->clh).tail))->locked) {
+    return 1;
+  }
+  clh_lock(lock);
+  return 0;
 }

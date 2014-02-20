@@ -60,22 +60,28 @@ typedef struct pack_data_t{
   SerialList_t **queue;
   void (*lock_f) (volatile lock_t *);
   void (*unlock_f) (volatile lock_t *);
+  int (*try_f) (volatile lock_t *);
 } pack_data_t;
 
 void tas_lock(volatile lock_t *lock);
 void tas_unlock(volatile lock_t *lock);
+int tas_try(volatile lock_t *lock);
 
 void backoff_lock(volatile lock_t *lock);
 void backoff_unlock(volatile lock_t *lock);
+int backoff_try(volatile lock_t *lock);
 
 void mutex_lock(volatile lock_t *lock);
 void mutex_unlock(volatile lock_t *lock);
+int mutex_try(volatile lock_t *lock);
 
 void anders_lock(volatile lock_t *lock);
 void anders_unlock(volatile lock_t *lock);
+int anders_try(volatile lock_t *lock);
 
 node_t *new_clh_node();
 void clh_lock(volatile lock_t *lock);
 void clh_unlock(volatile lock_t *lock);
+int clh_try(volatile lock_t *lock);
 
 #endif
