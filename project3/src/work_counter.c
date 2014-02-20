@@ -25,7 +25,7 @@ void *s_work_worker(void *arg)
 
 /* Launches a single thread which increments the counter with
    wild abandon, free to do so because it is running solo */
-int serial_work(int work) 
+double serial_work(int work) 
 {
   int rc;
   pthread_t *worker = (pthread_t *)malloc(sizeof(pthread_t));
@@ -116,17 +116,17 @@ double parallel_work(int work, int n, int type)
   pthread_mutex_t m;
   // Initialize alock
   volatile int anders[n*4]; 
-  volatile int tail;
-  volatile int head;
+  volatile long tail;
+  volatile long head;
   volatile alock_t alock;
   // Initialize CLH tail
   volatile node_t *p;
   
   thr_data_t data[n];
   pthread_t workers[n];
-  lock_t lock;
+  volatile lock_t lock;
   // Or for clh
-  lock_t c_locks[n];
+  volatile lock_t c_locks[n];
 
   // Initialize using switch over type
   switch (type) {

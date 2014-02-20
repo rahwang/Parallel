@@ -97,7 +97,7 @@ void spawn_time(int type,
 
 /* Launches n worker threads increamenting under 
    the authority of given lock */
-long parallel_time(unsigned int time, int n, int type)
+long parallel_time(unsigned int time, int n, int type, int exp)
 {
   int i;
   StopWatch_t watch;
@@ -110,17 +110,17 @@ long parallel_time(unsigned int time, int n, int type)
   pthread_mutex_t m;
   // Initialize alock
   volatile int anders[n*4]; 
-  volatile int tail;
-  volatile int head;
+  volatile long tail;
+  volatile long head;
   volatile alock_t alock;
   // Initialize CLH tail
   volatile node_t *p;
   
   thr_data_t data[n];
   pthread_t workers[n];
-  lock_t lock;
+  volatile lock_t lock;
   // Or for clh
-  lock_t c_locks[n];
+  volatile lock_t c_locks[n];
 
   // Initialize using switch over type
   switch (type) {
@@ -207,17 +207,29 @@ long parallel_time(unsigned int time, int n, int type)
   // print counter
   //printf("Counter = %i\n", counter);
   // print thread counters
-  int sum = 0;
+  double sum = 0;
   for (i = 0; i < n; i++) {
     //printf("%i : %i \n", i, data[i].my_count);
     sum += data[i].my_count;
   }
+  double avg = sum/n;
+  double dev;
 
   // print time
   //printf("%f\n",getElapsedTime(&watch));
   
   if (counter - sum) {
     return 0;
+  }
+  if (exp == 5) {
+    sum = 0;
+    for (i = 0; i < n; i++) {
+      sum += pow((data[i].my_count - avg), 2);
+    }
+    dev = sqrt(sum/n);
+    long res = (long)floor(dev);
+    
+    return res;
   }
   return counter;
 }

@@ -18,6 +18,6 @@ void spawn_time(int type,
 		int n, 
 		pthread_t *workers,
 		thr_data_t *data);
-long parallel_time(unsigned int time, int n, int type);
+long parallel_time(unsigned int time, int n, int type, int exp);
 
 #endif

@@ -5,7 +5,7 @@
 
 /* From serial_work_counter.c */
 void *s_work_worker();
-int serial_work(int work);
+double serial_work(int work);
 
 /* From parallel_work_counter.c */
 void *tas(void *arg);

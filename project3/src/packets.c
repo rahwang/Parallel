@@ -37,7 +37,7 @@ void *timekeep(void *args)
 }
 
 
-long *serial_pack(unsigned int time,
+long serial_pack(unsigned int time,
 		int n,
 		long W,
 		int uni,
@@ -47,7 +47,7 @@ long *serial_pack(unsigned int time,
 
   StopWatch_t watch;
   int i, rc;
-  int deqed = 0;
+  long deqed = 0;
   go = 1;
 
   // Fingerprint destination
@@ -91,9 +91,9 @@ long *serial_pack(unsigned int time,
   
   //printf("%f\n",getElapsedTime(&watch));
   if (deqed < 0) {
-    return NULL;
+    return 0;
   }
-  return fingerprint;
+  return deqed;
 }
 
 
@@ -145,7 +145,7 @@ void packet_spawn(int n, int type, int S, pthread_t *workers, pack_data_t *data)
 }
   
 
-pack_data_t *parallel_pack(unsigned int time,
+long parallel_pack(unsigned int time,
 		  int n,
 		  long W,
 		  int uni,
@@ -177,14 +177,16 @@ pack_data_t *parallel_pack(unsigned int time,
   pthread_mutex_t m[n];
   // Initialize alock
   volatile int anders[n][n*4]; 
-  volatile int tail[n];
-  volatile int head[n];
+  volatile long tail[n];
+  volatile long head[n];
   // Initialize CLH tail
   volatile node_t *p[n];
  
   pack_data_t *data = (pack_data_t *)malloc(sizeof(pack_data_t)*n);
+  //pack_data_t data[n];
   pthread_t workers[n];
   volatile lock_t *lock = (volatile lock_t *)malloc(sizeof(lock_t)*n);
+  //volatile lock_t lock[n];
   // Or for clh
   volatile lock_t c_locks[n][n];
 
@@ -299,20 +301,21 @@ pack_data_t *parallel_pack(unsigned int time,
   pthread_join(timekeeper, NULL);
   
   // Kill workers
-  int deqed = 0;
+  long deqed = 0;
   for (i = 0; i < n; i++) {
     pthread_join(workers[i], NULL);
     //printf("%i : %i...... from %i \n", i, data[i].my_count, enq[i]); 
     deqed += data[i].my_count;
+    pthread_mutex_destroy(m+i);
   }
   //printf("Total = %i\nCounter = %i\nDiff = %i\n", enqed, deqed, enqed-deqed);
 
   //printf("%f\n",getElapsedTime(&watch));
   
   if (enqed-deqed < 0) {
-    return NULL;
+    return 0;
   }
-  return data;
+  return deqed;
 }
 
 
@@ -327,6 +330,7 @@ void *lockfree(void *args)
   while(go) {
     (data->my_count) += dequeue(q[i], fp+i);
   }
+
   pthread_exit(NULL);
 }
 
@@ -347,7 +351,6 @@ void *homeq(void *args)
     (data->my_count) += dequeue(q[i], fp+i);
     (*unlockf)(locks+i);
   }
-
   pthread_exit(NULL);
 }
 
@@ -425,7 +428,7 @@ int dequeue(SerialList_t *q, long int *fingerprint)
     tmp = curr->value;
     *fingerprint += getFingerprint(tmp->iterations, tmp->seed);
     remove_list(q, curr->key);
-    q->tail = prev;
+    (q->tail) = prev;
     return 1;
   }
   return 0;

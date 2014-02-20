@@ -16,8 +16,8 @@
 
 typedef struct alock_t{
   volatile int *array;
-  volatile int *tail;
-  volatile int *head;
+  volatile long *tail;
+  volatile long *head;
   int max;  
 } alock_t;
 

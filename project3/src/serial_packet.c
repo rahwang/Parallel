@@ -3,6 +3,8 @@
 
 int main(int argc, char *argv[])
 {
+  int i;
+
   // get args
   if (argc != 6) 
     {
@@ -16,7 +18,13 @@ int main(int argc, char *argv[])
   int uni = atoi(argv[4]);
   short exp = atoi(argv[5]);
 
-  serial_pack(time, n, W, uni, exp);
-  
+  int trials = 10;
+  long counter = 0;
+  for (i = 0; i < trials; i++) {
+    counter += serial_pack(time, n, W, uni, exp);
+  }
+
+  counter /= trials;
+  printf("%i\t%s\t%u\t%i\t%i\t%li\n", exp, "ser", time, n, W, counter);  
   return 0;
 }

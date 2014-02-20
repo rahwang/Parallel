@@ -14,13 +14,13 @@ void *randomq(void *args);
 void *lastq(void *args); 
 void *awesome(void *args);
  
-long *serial_pack(unsigned int time,
+long serial_pack(unsigned int time,
 		int n,
 		long W,
 		int uni,
 		short exp);
 
-pack_data_t *parallel_pack(unsigned int time,
+long parallel_pack(unsigned int time,
 		    int n,
 		    long W,
 		    int uni,

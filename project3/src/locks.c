@@ -1,7 +1,7 @@
 #include "locks.h"
 
 #define MIN_DELAY 1
-#define MAX_DELAY 1000
+#define MAX_DELAY 256
 
 
 
@@ -96,7 +96,7 @@ int anders_try(volatile lock_t *lock)
 {
   //alock_t a = lock->a;
   int max = (lock->a).max;
-  volatile int *tail = (lock->a).tail;
+  volatile long *tail = (lock->a).tail;
 
   if ((lock->a).array[*tail % max]) {
     anders_lock(lock);
