@@ -54,14 +54,17 @@ int serial_work(int work)
   // print counter
   //printf("Work assigned: %i\nCounter: %lli\n", work, scounter);
 
-  return scounter;
+  if (!scounter) {
+    return 0;
+  }
+  return getElapsedTime(&watch);
 }
 
 /* Worker thread function  */
 void *p_work_worker(void *arg) {
 
   thr_data_t *data = (thr_data_t *)arg;
-  volatile int *counter = data->counter;
+  volatile long *counter = data->counter;
   volatile lock_t *locks = data->locks;
   void (*lockf)(volatile lock_t *) = data->lock_f;
   void (*unlockf)(volatile lock_t *) = data->unlock_f;
@@ -95,7 +98,7 @@ void spawn_work(int type,
 
 /* Launches n worker threads incrementing under 
    the authority of given lock */
-int parallel_work(int work, int n, int type)
+double parallel_work(int work, int n, int type)
 {
   int i;
   StopWatch_t watch;
@@ -106,7 +109,7 @@ int parallel_work(int work, int n, int type)
   }  
 
   // Lock args
-  volatile int counter = 0;
+  volatile long counter = 0;
   // TAS args
   volatile int state;
   // MUTEX args
@@ -215,5 +218,8 @@ int parallel_work(int work, int n, int type)
   // print time
   //printf("%f\n",getElapsedTime(&watch));
   
-  return work - counter - sum;
+  if (work - counter - sum) {
+    return 0;
+  }
+  return getElapsedTime(&watch);
 }

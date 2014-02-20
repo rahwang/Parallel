@@ -44,7 +44,7 @@ typedef union lock_t {
 } lock_t;
 
 typedef struct thr_data_t{
-  volatile int *counter;
+  volatile long *counter;
   volatile lock_t *locks;
   volatile int my_count;
   void (*lock_f) (volatile lock_t *);

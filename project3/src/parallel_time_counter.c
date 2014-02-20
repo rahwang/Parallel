@@ -14,8 +14,8 @@ int main(int argc, char *argv[])
   int n = atoi(argv[2]);
   int type = atoi(argv[3]);
 
-  parallel_time(time, n, type);
-  
+  long counter = parallel_time(time, n, type);
+  printf("%li\n", counter);
   return 0;
 }
 

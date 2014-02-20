@@ -7,7 +7,7 @@
 #define ALOCK 4
 #define CLH 5
 
-volatile long long int scounter;
+volatile long int scounter;
 volatile int go;
 
 
@@ -25,7 +25,7 @@ void *s_time_worker()
 
 /* Launches a single thread which increments the counter with
    wild abandon, free to do so because it is running solo */
-int serial_time(unsigned int time) 
+long serial_time(unsigned int time) 
 {
   int rc;
   pthread_t *worker = (pthread_t *)malloc(sizeof(pthread_t));
@@ -53,8 +53,6 @@ int serial_time(unsigned int time)
   // Stop timing
   stopTimer(&watch);
 
-
-  // print counter
   // printf("Counter = %lli\n", scounter);
 
   return scounter;
@@ -64,7 +62,7 @@ int serial_time(unsigned int time)
 void *p_time_worker(void *arg) {
 
   thr_data_t *data = (thr_data_t *)arg;
-  volatile int *counter = data->counter;
+  volatile long *counter = data->counter;
   volatile lock_t *locks = data->locks;
   void (*lockf)(volatile lock_t *) = data->lock_f;
   void (*unlockf)(volatile lock_t *) = data->unlock_f;
@@ -99,13 +97,13 @@ void spawn_time(int type,
 
 /* Launches n worker threads increamenting under 
    the authority of given lock */
-int parallel_time(unsigned int time, int n, int type)
+long parallel_time(unsigned int time, int n, int type)
 {
   int i;
   StopWatch_t watch;
 
   // Lock args
-  volatile int counter = 0;
+  volatile long int counter = 0;
   // TAS args
   volatile int state;
   // MUTEX args
@@ -189,7 +187,6 @@ int parallel_time(unsigned int time, int n, int type)
   // Start timing
   startTimer(&watch);
   
-  counter = 0;
   go = 1;
   
   // spawn worker
@@ -219,5 +216,8 @@ int parallel_time(unsigned int time, int n, int type)
   // print time
   //printf("%f\n",getElapsedTime(&watch));
   
-  return counter - sum;
+  if (counter - sum) {
+    return 0;
+  }
+  return counter;
 }

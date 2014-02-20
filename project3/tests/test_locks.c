@@ -34,15 +34,12 @@ void res(int pass, char *test, char *arg)
 int TESTcounter(int type, int n) 
 {
   int i;
-  int sum = 0;
   for (i = 0; i<trials; i++) {
-    sum = parallel_time(10, n, type);
-    if (sum) {
+    if (!parallel_time(10, n, type)) {
       printf("Error: time counter returned incorrect value\n");
       return 0;
     }
-    sum = parallel_work(1024, n, type);
-    if (sum) {
+    if (!parallel_work(1024, n, type)) {
       printf("Error: work counter returned incorrect value\n");
       return 0;
     }

@@ -17,6 +17,6 @@ void spawn_work(int type,
 		      int n, 
 		      pthread_t *workers,
 		      thr_data_t *data);
-int parallel_work(int work, int n, int type);
+double parallel_work(int work, int n, int type);
 
 #endif

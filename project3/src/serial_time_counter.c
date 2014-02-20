@@ -9,7 +9,8 @@ int main(int argc, char *argv[])
 
   unsigned int time = (unsigned int)atoi(argv[1]);
 
-  serial_time(time);
+  long counter = serial_time(time);
 
+  printf("%li\n", counter);
   return 0;
 }

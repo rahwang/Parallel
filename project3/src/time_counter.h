@@ -1,3 +1,4 @@
+
 #ifndef TIME_COUNTER_H
 #define TIME_COUNTER_H
 
@@ -5,7 +6,7 @@
 
 /* From serial_time_counter.c */
 void *s_time_worker();
-int serial_time(unsigned int time);
+long serial_time(unsigned int time);
 
 /* From parallel_time_counter.c */
 void *tas(void *arg);
@@ -17,6 +18,6 @@ void spawn_time(int type,
 		int n, 
 		pthread_t *workers,
 		thr_data_t *data);
-int parallel_time(unsigned int time, int n, int type);
+long parallel_time(unsigned int time, int n, int type);
 
 #endif
