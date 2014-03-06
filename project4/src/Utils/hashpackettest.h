@@ -10,8 +10,17 @@
 #include <pthread.h>
 #include "hashpacketworker.h"
 #include "hashtable.h"
+#include "hashlist.h"
 
-void serialHashPacketTest(int numMilliseconds,
+typedef struct dispatch_t{
+  HashPacketGenerator_t *source;
+  HashList_t **queues;
+  volatile int n;
+  volatile int count;
+  PaddedPrimBool_NonVolatile_t * done;
+} dispatch_t;
+
+long serialHashPacketTest(int numMilliseconds,
 			  float fractionAdd,
 			  float fractionRemove,
 			  float hitRate,
@@ -20,7 +29,7 @@ void serialHashPacketTest(int numMilliseconds,
 			  int initSize);
 
 
-void parallelHashPacketTest(int numMilliseconds,
+long parallelHashPacketTest(int numMilliseconds,
 			    float fractionAdd,
 			    float fractionRemove,
 			    float hitRate,
@@ -30,6 +39,38 @@ void parallelHashPacketTest(int numMilliseconds,
 			    int numWorkers,
 			    int tableType);
 
+lockedTable_t *initLocked(int maxBucketSize, int initSize, 
+			  HashPacketGenerator_t *source, 
+			  ParallelPacketWorker_t *data, 
+			  int numWorkers,
+			  PaddedPrimBool_NonVolatile_t * done,
+			  HashList_t **queues,
+			  long *fingerprints);
 
+lockFreeCTable_t *initLockFreeC(int maxBucketSize, int initSize, 
+			  HashPacketGenerator_t *source, 
+			  ParallelPacketWorker_t *data, 
+			  int numWorkers,
+			  PaddedPrimBool_NonVolatile_t * done,
+			  HashList_t **queues,
+			  long *fingerprints);
+
+linearProbeTable_t *initLinearProbe(int maxBucketSize, int initSize, 
+			  HashPacketGenerator_t *source, 
+			  ParallelPacketWorker_t *data, 
+			  int numWorkers,
+			  PaddedPrimBool_NonVolatile_t * done,
+			  HashList_t **queues,
+			  long *fingerprints);
+
+awesomeTable_t *initAwesome(int maxBucketSize, int initSize, 
+			  HashPacketGenerator_t *source, 
+			  ParallelPacketWorker_t *data, 
+			  int numWorkers,
+			  PaddedPrimBool_NonVolatile_t * done,
+			  HashList_t **queues,
+			  long *fingerprints);
+
+void dispatch(void *args);
 
 #endif /* HASHPACKETTEST_H_ */

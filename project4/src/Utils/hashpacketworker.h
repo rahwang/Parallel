@@ -5,17 +5,34 @@
 #include "hashgenerator.h"
 #include "hashtable.h"
 
-typedef struct serialPacketWorker_t{
+typedef struct SerialPacketWorker_t{
   PaddedPrimBool_NonVolatile_t * done;
   HashPacketGenerator_t * source;
   serialTable_t * table;
   long totalPackets;
   long residue;
   long fingerprint;
-}serialPacketWorker_t;
+} SerialPacketWorker_t;
 
+typedef struct ParallelPacketWorker_t{
+  PaddedPrimBool_NonVolatile_t * done;
+  hashtable_t * table;
+  long totalPackets;
+  HashList_t **queues;
+  int tid;
+  int n;
+  void (*addf) (hashtable_t *, int, volatile Packet_t *);
+  bool (*removef) (hashtable_t *, int);
+  bool (*containsf) (hashtable_t *, int);
+  long *fingerprints;
+} ParallelPacketWorker_t;
 
-void serialWorker(serialPacketWorker_t *data);
+void serialWorker(SerialPacketWorker_t *data);
+void parallelWorker(ParallelPacketWorker_t *data);
+void noloadWorker(ParallelPacketWorker_t *data);
 
+int enqueue(HashList_t *q, int D, volatile HashPacket_t *packet, int key);
+volatile HashPacket_t *getPacket(HashList_t **q, int i);
+volatile HashPacket_t *dequeue(HashList_t *q); 
 
 #endif /* HASHPACKETWORKER_H_ */
