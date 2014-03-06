@@ -1,33 +1,84 @@
-
 #ifndef HASHTABLE_H_
 #define HASHTABLE_H_
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <pthread.h>
+#include <time.h>
+
+#include "generators.h"
+#include "stopwatch.h"
+#include "fingerprint.h"
+#include "packetsource.h"
 #include "seriallist.h"
 #include <stdbool.h>
 
-typedef struct {
-	int logSize;
-	int mask;
-	int maxBucketSize;
-	int size;
-	SerialList_t ** table;
-}SerialHashTable_t;
+#define SERIAL 0
+#define LOCKED 1
+#define LOCKFREEC 2
+#define LINEARPROBED 3
+#define AWESOME 4
 
-SerialHashTable_t * createSerialHashTable(int logSize, int maxBucketSize);
+typedef struct serialTable_t {
+  int logSize;
+  int mask;
+  int maxBucketSize;
+  int size;
+  SerialList_t ** table;
+}serialTable_t;
 
-void resizeIfNecessary_ht(SerialHashTable_t * htable,int key);
+typedef struct lockedTable_t { 
+  int logSize;
+  int mask;
+  int maxBucketSize;
+  int size;
+  SerialList_t ** table;
+  pthread_rwlock_t *rw_locks;
+} lockedTable_t;
 
-void addNoCheck_ht(SerialHashTable_t * htable,int key, volatile Packet_t * x);
+typedef struct lockFreeCTable_t {
+  int logSize;
+  int mask;
+  int maxBucketSize;
+  int size;
+  SerialList_t ** table;
+  pthread_mutex_t *locks;
+} lockFreeCTable_t;
 
-void add_ht(SerialHashTable_t * htable,int key, volatile Packet_t * x);
+typedef struct linearProbedTable_t {
+  int logSize;
+  int mask;
+  int maxBucketSize;
+  int size;
+} linearProbedTable_t;
 
-bool remove_ht(SerialHashTable_t * htable,int key);
+typedef struct awesomeTable_t {
+  int logSize;
+  int mask;
+  int maxBucketSize;
+  int size;
+} awesomeTable_t;
 
-bool contains_ht(SerialHashTable_t * htable,int key);
+typedef union hashtable_t {
+  serialTable_t *serial;
+  lockedTable_t *locked;
+  lockFreeCTable_t *lockFreeC;
+  linearProbedTable_t *linearProbed;
+  awesomeTable_t *awesome;
+}hashable_t;
 
-void resize_ht(SerialHashTable_t * htable);
+/* For serial hash table */
+serialTable_t * createserialTable(int logSize, int maxBucketSize);
+void resizeIfNecessary_ht(serialTable_t * htable,int key);
+void addNoCheck_ht(serialTable_t * htable,int key, volatile Packet_t * x);
+void add_ht(serialTable_t * htable,int key, volatile Packet_t * x);
+bool remove_ht(serialTable_t * htable,int key);
+bool contains_ht(serialTable_t * htable,int key);
+void resize_ht(serialTable_t * htable);
+void print_ht(serialTable_t * htable);
 
-void print_ht(SerialHashTable_t * htable);
 
 
 

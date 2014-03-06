@@ -1,0 +1,24 @@
+#include "Utils/hashpackettest.h"
+
+
+int main(int argc, char *argv[]) 
+{
+  int i;
+
+  if (argc != 10) {
+    fprintf(stderr, "Error: wrong number of arguments provided. Program expects 9 arguments.\n");
+    exit(1);
+  }
+
+  unsigned int numMilliseconds = (unsigned int)atoi(argv[1]);
+  float fractionAdd = atof(argv[2]);
+  float fractionRemove = atof(argv[3]);
+  float hitRate = atof(argv[4]);
+  int maxBucketSize = atoi(argv[5]);
+  long mean = (long)atoi(argv[6]);
+  int initSize = atoi(argv[7]);
+  int numWorkers = atoi(argv[8]);
+  int tableType = atoi(argv[9]);
+
+  parallelHashPacketTest(numMilliseconds, fractionAdd, fractionRemove, hitRate, maxBucketSize, mean, initSize, numWorkers, tableType);
+}

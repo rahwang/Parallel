@@ -12,28 +12,17 @@ SerialList_t *  createSerialList()
 	return list;
 }
 
-SerialList_t *  createSerialListWithItem(int key, volatile Packet_t * value)
-{
-	SerialList_t * list = (SerialList_t *)malloc(sizeof(SerialList_t));
-	list->size = 1;
-	Item_t * newItem = (Item_t *)malloc(sizeof(Item_t));
-	newItem->key = key;
-	newItem->value = value;
-	list->head = newItem;
+SerialList_t * createSerialListWithItem(int key, volatile Packet_t * value)
+{ 
+  SerialList_t * list = (SerialList_t *)malloc(sizeof(SerialList_t));
+  list->size = 1;
+  Item_t * newItem = (Item_t *)malloc(sizeof(Item_t));
+  newItem->key = key;
+  newItem->value = value;
+  newItem->next = NULL; // ADDED
+  list->head = newItem;
 
-	return list;
-}
-
-Item_t * getItem_list(SerialList_t * list, int key){
-
-	Item_t * curr = list->head;
-
-	while(curr != NULL){
-		if(curr->key == key)
-			return curr;
-		curr = curr->next;
-	}
-	return NULL;
+  return list;
 }
 
 bool contains_list(SerialList_t * list, int key){
