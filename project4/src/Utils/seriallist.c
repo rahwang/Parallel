@@ -18,11 +18,10 @@ int list_len(SerialList_t *q) {
 
 SerialList_t *  createSerialList()
 {
-	SerialList_t * list = (SerialList_t *)malloc(sizeof(SerialList_t));
-	list->size = 0;
-	list->head = NULL;
-
-	return list;
+  SerialList_t * list = (SerialList_t *)malloc(sizeof(SerialList_t));
+  list->size = 0;
+  list->head = NULL;
+  return list;
 }
 
 SerialList_t * createSerialListWithItem(int key, volatile Packet_t * value)
@@ -40,48 +39,48 @@ SerialList_t * createSerialListWithItem(int key, volatile Packet_t * value)
 
 Item_t * getItem_list(SerialList_t * list, int key){
 
-	Item_t * curr = list->head;
-
-	while(curr != NULL){
-		if(curr->key == key)
-			return curr;
-		curr = curr->next;
-	}
-	return NULL;
+  Item_t * curr = list->head;
+  
+  while(curr != NULL){
+    if(curr->key == key)
+      return curr;
+    curr = curr->next;
+  }
+  return NULL;
 }
 
 bool contains_list(SerialList_t * list, int key){
-	return getItem_list(list,key) != NULL;
+  return getItem_list(list,key) != NULL;
 }
 
 bool remove_list(SerialList_t * list, int key){
-	if(!contains_list(list,key))
-		return false;
-
-	Item_t * curr = list->head;
-
-	if(curr == NULL)
-		return false;
+  if(!contains_list(list,key))
+    return false;
+  
+  Item_t * curr = list->head;
+  
+  if(curr == NULL)
+    return false;
 	else if (curr->key ==key){
-		Item_t * temp = curr;
-		list->head = list->head->next;
-		free(temp);
-		list->size--;
-		return true;
+	  Item_t * temp = curr;
+	  list->head = list->head->next;
+	  free(temp);
+	  __sync_fetch_and_sub(&(list->size), 1);
+	  return true;
 	}else{
-		while(curr->next != NULL) {
-			if(curr->next->key == key){
-				Item_t * temp = curr->next;
-				curr->next = curr->next->next;
-				free(temp);
-				list->size--;
-				return true;
-			}
-			else
-				curr = curr->next;
-		}
+	  while(curr->next != NULL) {
+	    if(curr->next->key == key){
+	      Item_t * temp = curr->next;
+	      curr->next = curr->next->next;
+	      free(temp);
+	      __sync_fetch_and_sub(&(list->size), 1);
+	      return true;
+	    }
+	    else
+	      curr = curr->next;
+	  }
 	}
-	return false;
+  return false;
 }
 
 void add_list(SerialList_t * list, int key, volatile Packet_t * value){
@@ -95,7 +94,7 @@ void add_list(SerialList_t * list, int key, volatile Packet_t * value){
     newItem->value = value;
     newItem->next = list->head;
     list->head = newItem;
-    list->size++;
+    __sync_fetch_and_add(&(list->size), 1);
   }
 }
 
@@ -106,13 +105,13 @@ void addNoCheck_list(SerialList_t * list, int key, volatile Packet_t * value){
   newItem->value = value;
   newItem->next = list->head;
   list->head = newItem;
-  list->size++;
+  __sync_fetch_and_add(&(list->size), 1);
 }
 
 void print_list(SerialList_t * list){
   Item_t * curr = list->head;
-  //int len = list_len(list);
-  printf(" # ITEMS = %i\n", list->size);
+  int len = list_len(list);
+  printf(" # ITEMS = %i\n", len);
   while(curr != NULL){
     printf("    addr:%p\tkey:%d\tvalue:%p\n",curr,curr->key,curr->value);
     curr = curr->next;

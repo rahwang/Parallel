@@ -66,6 +66,7 @@ long serialHashPacketTest(int numMilliseconds,
   
   stopTimer(&timer);
 
+  //print_serial(table);
   free_serial(table);
   
   long totalCount = workerData.totalPackets;

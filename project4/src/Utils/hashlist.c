@@ -105,9 +105,9 @@ void addNoCheck_hashlist(HashList_t * list, int key, volatile HashPacket_t * val
 
 void print_hashlist(HashList_t * list){
   HashItem_t * curr = list->head;
-  
+  printf(" # ITEMS = %i\n", hashlist_len(list));
   while(curr != NULL){
-    printf("addr:%p\tkey:%d\tvalue:%p\n",curr,curr->key,curr->value);
+    printf("    addr:%p\tkey:%d\tvalue:%p\n",curr,curr->key,curr->value);
     curr = curr->next;
   }
 }
