@@ -15,7 +15,7 @@ typedef struct SerialPacketWorker_t{
 } SerialPacketWorker_t;
 
 typedef struct ParallelPacketWorker_t{
-  PaddedPrimBool_NonVolatile_t * done;
+  volatile int *go;
   hashtable_t * table;
   long totalPackets;
   HashList_t **queues;

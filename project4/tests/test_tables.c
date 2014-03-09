@@ -374,6 +374,12 @@ int TESTremove(int tableType, int numPkt, int numWorkers)
 }
 
 
+int TESTintegration(int tableType, int time, int numWorkers) {
+  parallelHashPacketTest(time, .25, .25, .5, 12, 1000, 4, numWorkers, tableType);
+  return 1;
+}
+
+
 int main()
 {
   //int trials = 1; 
@@ -401,6 +407,11 @@ int main()
   res(TESTremove(1, 16, 1), "REMOVE", "(pkts = 16, n = 1)");
   res(TESTremove(1, 16, 16), "REMOVE", "(pkts = 16, n = 16)");
   res(TESTremove(1, 64, 16), "REMOVE", "(pkts = 64, n = 16)");
+  res(TESTintegration(1, 1000, 1), "INTEGRATION", "(time = 1000, n = 1)");
+  res(TESTintegration(1, 1000, 2), "INTEGRATION", "(time = 1000, n = 2)");
+  res(TESTintegration(1, 1000, 4), "INTEGRATION", "(time = 1000, n = 4)");
+  res(TESTintegration(1, 1000, 16), "INTEGRATION", "(time = 1000, n = 16)");
+ 
   printf("---\n");
   return 0;
 }

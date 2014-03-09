@@ -90,8 +90,8 @@ long parallelHashPacketTest(int numMilliseconds,
 {
   StopWatch_t timer;
   int i, rc;
-  PaddedPrimBool_NonVolatile_t done;
-  done.value = false;
+  volatile int go = 1;
+
   
   // allocate and initialize queues + fingerprints
   HashList_t *queues[numWorkers];
@@ -107,7 +107,7 @@ long parallelHashPacketTest(int numMilliseconds,
   // Initialize htable + arguments by type
   pthread_t worker[numWorkers];
   ParallelPacketWorker_t data[numWorkers];
-  hashtable_t *htable = initTable(maxBucketSize, initSize, data, source, numWorkers, &done, queues, fingerprints, tableType);
+  hashtable_t *htable = initTable(maxBucketSize, initSize, data, source, numWorkers, &go, queues, fingerprints, tableType);
   
   // Spawn Workers
   for (i = 0; i <numWorkers; i++) {
@@ -124,6 +124,7 @@ long parallelHashPacketTest(int numMilliseconds,
   dispatchData.queues = queues;
   dispatchData.n = numWorkers;
   dispatchData.count = 0;
+  dispatchData.go = &go;
   
   // Start timing
   struct timespec tim;  
@@ -131,7 +132,7 @@ long parallelHashPacketTest(int numMilliseconds,
   startTimer(&timer);
   
   // start your Dispatcher
-  if ((rc = pthread_create(&dispatcher, NULL, (void *)&dispatch, (void *)&dispatchData))) {
+  if ((rc = pthread_create(&dispatcher, NULL, (void *)&dispatch, &dispatchData))) {
     fprintf(stderr,"ERROR: return code from pthread_create() for dispatch thread is %d\n", rc);
     exit(-1);
   }
@@ -140,7 +141,7 @@ long parallelHashPacketTest(int numMilliseconds,
   nanosleep(&tim , NULL);
  
   // assert signals to stop Dispatcher
-  done.value = true;  
+  go = 0;  
   
   // call join on Dispatcher
   pthread_join(dispatcher, NULL);
@@ -165,7 +166,7 @@ hashtable_t *initTable(int maxBucketSize, int initSize,
 		       ParallelPacketWorker_t *data, 
 		       HashPacketGenerator_t * source,
 		       int numWorkers,
-		       PaddedPrimBool_NonVolatile_t * done,
+		       volatile int *go,
 		       HashList_t **queues,
 		       long *fingerprints,
 		       int tableType)
@@ -174,16 +175,16 @@ hashtable_t *initTable(int maxBucketSize, int initSize,
 
   switch(tableType) {
   case(LOCKED):
-    htable->locked = initLocked(maxBucketSize, initSize, data, source, numWorkers, done, queues, fingerprints);
+    htable->locked = initLocked(maxBucketSize, initSize, data, source, numWorkers, go, queues, fingerprints);
     break;/*
   case(LOCKFREEC):
-    htable->lockFreeC = initLockFreeC(maxBucketSize, initSize, data, source, numWorkers, done, queues, fingerprints);
+    htable->lockFreeC = initLockFreeC(maxBucketSize, initSize, data, source, numWorkers, go, queues, fingerprints);
     break;
   case(LINEARPROBED):
-    htable->linearProbe = initLinearProbe(maxBucketSize, initSize, data, source, numWorkers, done, queues, fingerprints);
+    htable->linearProbe = initLinearProbe(maxBucketSize, initSize, data, source, numWorkers, go, queues, fingerprints);
     break;
   case(AWESOME):
-    htable->awesome = initAwesome(maxBucketSize, initSize, data, source, numWorkers, done, queues, fingerprints);
+    htable->awesome = initAwesome(maxBucketSize, initSize, data, source, numWorkers, go, queues, fingerprints);
     break;*/
   }
 
@@ -194,7 +195,7 @@ lockedTable_t *initLocked(int maxBucketSize, int initSize,
 			  ParallelPacketWorker_t *data, 
 			  HashPacketGenerator_t * source,
 			  int numWorkers,
-			  PaddedPrimBool_NonVolatile_t * done,
+			  volatile int* go,
 			  HashList_t **queues,
 			  long *fingerprints) 
 {
@@ -209,7 +210,7 @@ lockedTable_t *initLocked(int maxBucketSize, int initSize,
     addNoCheck_locked(htable->locked, pkt->key, pkt->body);
   }
   for (i = 0; i < numWorkers; i++) {
-    data[i].done = done;
+    data[i].go = go;
     data[i].totalPackets = 0;
     data[i].queues = queues;
     data[i].tid = i;
@@ -228,7 +229,7 @@ lockFreeCTable_t *initLockFreeC(int maxBucketSize, int initSize,
 			  HashPacketGenerator_t *source, 
 			  ParallelPacketWorker_t *data, 
 			  int numWorkers,
-			  PaddedPrimBool_NonVolatile_t * done,
+			  PaddedPrimBool_NonVolatile_t * go,
 			  HashList_t **queues,
 			  long *fingerprints) 
 {
@@ -242,7 +243,7 @@ lockFreeCTable_t *initLockFreeC(int maxBucketSize, int initSize,
     addNoCheck_lockFreeC(new, pkt->key, pkt->body);
   }
   for (i = 0; i < numWorkers; i++) {
-    data[i].done = done;
+    data[i].go = go;
     data[i].totalPackets = 0;
     data[i].queues = queues;
     data[i].tid = i;
@@ -262,7 +263,7 @@ linearProbeTable_t *initLinearProbe(int maxBucketSize, int initSize,
 				    HashPacketGenerator_t *source, 
 				    ParallelPacketWorker_t *data, 
 				    int numWorkers,
-				    PaddedPrimBool_NonVolatile_t * done,
+				    PaddedPrimBool_NonVolatile_t * go,
 				    HashList_t **queues,
 				    long *fingerprints) 
 
@@ -277,7 +278,7 @@ linearProbeTable_t *initLinearProbe(int maxBucketSize, int initSize,
     addNoCheck_linearProbe(new, pkt->key, pkt->body);
   }
   for (i = 0; i < numWorkers; i++) {
-    data[i].done = done;
+    data[i].go = go;
     data[i].totalPackets = 0;
     data[i].queues = queues;
     data[i].tid = i;
@@ -297,7 +298,7 @@ awesomeTable_t *initAwesome(int maxBucketSize, int initSize,
 			    HashPacketGenerator_t *source, 
 			    ParallelPacketWorker_t *data, 
 			    int numWorkers,
-			    PaddedPrimBool_NonVolatile_t * done,
+			    PaddedPrimBool_NonVolatile_t * go,
 			    HashList_t **queues,
 			    long *fingerprints) 
  
@@ -312,7 +313,7 @@ awesomeTable_t *initAwesome(int maxBucketSize, int initSize,
     addNoCheck_awesome(new, pkt->key, pkt->body);
   }
   for (i = 0; i < numWorkers; i++) {
-    data[i].done = done;
+    data[i].go = go;
     data[i].totalPackets = 0;
     data[i].queues = queues;
     data[i].tid = i;
@@ -333,11 +334,13 @@ void dispatch(void *args)
   dispatch_t *data = (dispatch_t *)args;
   
   int i;
-  while(!data->done->value) {
+  int it = 0;
+  while(*(data->go)) {
     for (i = 0; i < data->n; i++) {
       volatile HashPacket_t *pkt = getRandomPacket(data->source);
       data->count += enqueue((data->queues)[i], 12, pkt, data->count);
     }
+    it++;
   }
 }
 

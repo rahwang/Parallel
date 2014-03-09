@@ -8,8 +8,8 @@ int hashlist_len(HashList_t *list) {
   HashItem_t *curr = list->head;
   int count = 0;
   while (curr) {
-    count++;
     curr = curr->next;
+    count++;
   }
   return count;
 }
@@ -55,7 +55,7 @@ bool remove_hashlist(HashList_t * list, int key){
       list->head = NULL;
     }
     free(temp);
-    list->size--;
+    __sync_fetch_and_sub(&(list->size), 1);
     return true;
   }else{
     while(curr->next != NULL) {
@@ -66,7 +66,7 @@ bool remove_hashlist(HashList_t * list, int key){
 	  list->tail = curr;
 	}
 	free(temp);
-	list->size--;
+	__sync_fetch_and_sub(&(list->size), 1);
 	return true;
       }
       else
@@ -90,9 +90,10 @@ void add_hashlist(HashList_t * list, int key, volatile HashPacket_t * value){
     if (list->size == 0) {
       list->tail = newItem;
     }
-    list->size++;
+  __sync_fetch_and_add(&(list->size), 1);
   }
 }
+
 void addNoCheck_hashlist(HashList_t * list, int key, volatile HashPacket_t * value){
 
   HashItem_t * newItem = (HashItem_t *)malloc(sizeof(HashItem_t));
@@ -100,7 +101,7 @@ void addNoCheck_hashlist(HashList_t * list, int key, volatile HashPacket_t * val
   newItem->value = value;
   newItem->next = list->head;
   list->head = newItem;
-  list->size++;
+  __sync_fetch_and_add(&(list->size), 1);
 }
 
 void print_hashlist(HashList_t * list){

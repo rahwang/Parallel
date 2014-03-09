@@ -142,12 +142,14 @@ void resizeIfNecessary_locked(lockedTable_t * table, int key){
       && table->table[idx]->size >= table->maxBucketSize) {
     for (i = 0; i < (table->numLocks); i++) {
       pthread_rwlock_wrlock((table->rw_locks)+i);
+      //printf("Lock %i\n", i);
     }
     if (oldsize == table->logSize) {
 	resize_locked(table);
     }
     for (i = 0; i < (table->numLocks); i++) {
       pthread_rwlock_unlock((table->rw_locks)+i);
+      //printf("Unlock %i\n", i);
     }
   }
 }
@@ -159,8 +161,9 @@ void addNoCheck_locked(lockedTable_t * table, int key, volatile Packet_t * x)
   int oldSize = table->logSize;
   int idx = key & table->mask;
   int lidx = idx % table->numLocks;
-  pthread_rwlock_wrlock(locks+lidx);
 
+  pthread_rwlock_wrlock(locks+lidx);
+  //printf("Lock %i\n", lidx);
   if (oldSize != table->logSize) {
     pthread_rwlock_unlock(locks+lidx);
     addNoCheck_locked(table, key, x);
@@ -174,6 +177,7 @@ void addNoCheck_locked(lockedTable_t * table, int key, volatile Packet_t * x)
     addNoCheck_list(table->table[idx],key,x);
   }
   pthread_rwlock_unlock(locks+lidx);
+  //printf("unlock %i\n", lidx);
 }
 
 
@@ -197,6 +201,7 @@ bool remove_locked(hashtable_t * htable,int key)
   int lidx = idx % table->numLocks;
 
   pthread_rwlock_wrlock(locks+lidx);
+  //printf("Lock %i\n", lidx);
   if (oldSize != table->logSize) {
     pthread_rwlock_unlock(locks+lidx);
     return remove_locked(htable, key);
@@ -208,6 +213,7 @@ bool remove_locked(hashtable_t * htable,int key)
     res = false;
   }
   pthread_rwlock_unlock(locks+lidx);
+  //printf("Unlock %i\n", lidx);
   return res;
 }
 
@@ -222,6 +228,7 @@ bool contains_locked(hashtable_t * htable, int key)
   int lidx = idx % table->numLocks;
   
   pthread_rwlock_rdlock(locks+lidx);
+  //printf("Lock %i\n", lidx);
   if (oldSize != table->logSize) {
     pthread_rwlock_unlock(locks+lidx);
     return contains_locked(htable, key);
@@ -233,6 +240,7 @@ bool contains_locked(hashtable_t * htable, int key)
     res = false;
   }
   pthread_rwlock_unlock(locks+lidx);
+  //printf("Unlock %i\n", lidx);
   return res;
 }
 

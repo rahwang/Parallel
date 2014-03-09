@@ -17,7 +17,7 @@ typedef struct dispatch_t{
   HashList_t **queues;
   volatile int n;
   volatile int count;
-  PaddedPrimBool_NonVolatile_t * done;
+  volatile int *go;
 } dispatch_t;
 
 long serialHashPacketTest(int numMilliseconds,
@@ -43,7 +43,7 @@ lockedTable_t *initLocked(int maxBucketSize, int initSize,
 			  ParallelPacketWorker_t *data,
 			  HashPacketGenerator_t * source, 
 			  int numWorkers,
-			  PaddedPrimBool_NonVolatile_t * done,
+			  volatile int *go,
 			  HashList_t **queues,
 			  long *fingerprints);
 
@@ -51,7 +51,7 @@ lockFreeCTable_t *initLockFreeC(int maxBucketSize, int initSize,
 				ParallelPacketWorker_t *data,
 				HashPacketGenerator_t * source, 
 				int numWorkers,
-				PaddedPrimBool_NonVolatile_t * done,
+				volatile int *go,
 				HashList_t **queues,
 				long *fingerprints);
 
@@ -59,7 +59,7 @@ linearProbeTable_t *initLinearProbe(int maxBucketSize, int initSize,
 				    ParallelPacketWorker_t *data,
 				    HashPacketGenerator_t * source, 
 				    int numWorkers,
-				    PaddedPrimBool_NonVolatile_t * done,
+				    volatile int *go,
 				    HashList_t **queues,
 				    long *fingerprints);
 
@@ -67,7 +67,7 @@ awesomeTable_t *initAwesome(int maxBucketSize, int initSize,
 			    ParallelPacketWorker_t *data, 
 			    HashPacketGenerator_t * source,
 			    int numWorkers,
-			    PaddedPrimBool_NonVolatile_t * done,
+			    volatile int *go,
 			    HashList_t **queues,
 			    long *fingerprints);
 
@@ -75,7 +75,7 @@ hashtable_t *initTable(int maxBucketSize, int initSize,
 		       ParallelPacketWorker_t *data, 
 		       HashPacketGenerator_t * source,
 		       int numWorkers,
-		       PaddedPrimBool_NonVolatile_t * done,
+		       volatile int *go,
 		       HashList_t **queues,
 		       long *fingerprints,
 		       int tableType);
