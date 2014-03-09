@@ -35,6 +35,7 @@ typedef struct lockedTable_t {
   volatile int mask;
   volatile int maxBucketSize;
   volatile int size;
+  volatile int *entries;
   SerialList_t ** table;
   volatile int numLocks;
   pthread_rwlock_t *rw_locks;
@@ -80,6 +81,7 @@ bool remove_serial(serialTable_t * htable,int key);
 bool contains_serial(serialTable_t * htable,int key);
 void resize_serial(serialTable_t * htable);
 void print_serial(serialTable_t * htable);
+void free_serial(serialTable_t *table);
 
 /* For locked hash table */
 lockedTable_t * createLockedTable(int logSize, int maxBucketSize, int n);
@@ -122,5 +124,6 @@ void resize_awesome(awesomeTable_t * htable);
 void print_awesome(awesomeTable_t * htable);
 */
 
+void free_htable(hashtable_t *htable, int type);
 
 #endif /* HASHTABLE_H_ */

@@ -56,25 +56,15 @@ void parallelWorker(ParallelPacketWorker_t * data){
   }
 }
 
-/* Get queue length
- */
-int q_len(HashList_t *q) {
-  HashItem_t *curr = q->head;
-  int count = 0;
-  while (curr) {
-    count++;
-    curr = curr->next;
-  }
-  return count;
-}
 
 int enqueue(HashList_t *q, int D, volatile HashPacket_t *packet, int key) {
-  if (q_len(q) == D) {
+  if (hashlist_len(q) == D) {
     return 0;
   }    
   add_hashlist(q, key, packet);
   return 1;
 }
+
 
 volatile HashPacket_t *getPacket(HashList_t **q, int i) 
 {
@@ -82,6 +72,7 @@ volatile HashPacket_t *getPacket(HashList_t **q, int i)
   while (!(pkt = dequeue(q[i]))) {};
   return pkt;
 }
+
   
 volatile HashPacket_t *dequeue(HashList_t *q) 
 {

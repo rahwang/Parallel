@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#define POLICY .75
+
 serialTable_t * createSerialTable(int logSize, int maxBucketSize)
 {
   serialTable_t * htable = (serialTable_t *)malloc(sizeof(serialTable_t));
@@ -84,6 +86,17 @@ void resize_serial(serialTable_t * htable){
   free(temp);
 }
 
+
+void free_serial(serialTable_t *table) {
+  int i;
+  for (i = 0; i < table->size; i++) {
+    free(table->table[i]);
+  }
+  free(table->table);
+  free(table);
+}
+
+
 void print_serial(serialTable_t * htable){
   for( int i = 0; i <= htable->mask; i++ ) {
     printf(".... %d ....",i);
@@ -98,6 +111,8 @@ lockedTable_t * createLockedTable(int logSize, int maxBucketSize, int n)
 {
   int i;
   lockedTable_t * htable = (lockedTable_t *)malloc(sizeof(lockedTable_t));
+  htable->entries = (int *)malloc(sizeof(int));
+  *(htable->entries) = 0;
   htable->logSize = logSize;
   htable->maxBucketSize = maxBucketSize;
   htable->mask = (1 << logSize) - 1;
@@ -112,17 +127,19 @@ lockedTable_t * createLockedTable(int logSize, int maxBucketSize, int n)
   for (i = 0; i < n; i++) {
     pthread_rwlock_init(rw_locks+i, NULL);
   }
+  htable->rw_locks = rw_locks;
   return htable;
 }
 
 
 void resizeIfNecessary_locked(lockedTable_t * table, int key){	
   int i;
-  int oldsize = table->logSize;
   int idx = key & table->mask;
+  int oldsize = table->logSize;
 
-  while( table->table[idx] != NULL
-	 && table->table[idx]->size >= table->maxBucketSize) {
+  //if (*(table->entries) > (table->size)*POLICY) {
+  if (table->table[idx] != NULL
+      && table->table[idx]->size >= table->maxBucketSize) {
     for (i = 0; i < (table->numLocks); i++) {
       pthread_rwlock_wrlock((table->rw_locks)+i);
     }
@@ -141,11 +158,9 @@ void addNoCheck_locked(lockedTable_t * table, int key, volatile Packet_t * x)
   pthread_rwlock_t *locks = table->rw_locks;
   int oldSize = table->logSize;
   int idx = key & table->mask;
-  printf("%d, %d\n", idx, table->numLocks);
   int lidx = idx % table->numLocks;
-  printf("Try???\n");
   pthread_rwlock_wrlock(locks+lidx);
-  printf("Try????\n");
+
   if (oldSize != table->logSize) {
     pthread_rwlock_unlock(locks+lidx);
     addNoCheck_locked(table, key, x);
@@ -155,13 +170,14 @@ void addNoCheck_locked(lockedTable_t * table, int key, volatile Packet_t * x)
     table->table[idx] = createSerialListWithItem(key, x);
   }
   else {
+    //printf("Adding to list\n"); 
     addNoCheck_list(table->table[idx],key,x);
   }
   pthread_rwlock_unlock(locks+lidx);
 }
 
 
-void add_locked(hashtable_t * htable,int key, volatile Packet_t * x)
+void add_locked(hashtable_t * htable, int key, volatile Packet_t * x)
 {
   lockedTable_t *table = htable->locked;
   resizeIfNecessary_locked(table, key);
@@ -258,11 +274,41 @@ void resize_locked(lockedTable_t * table)
   free(temp);
 }
 
+
 void print_locked(lockedTable_t * htable)
 {
+  printf("\n~~~ Locked Table ~~~\nSize = %i\nLogSize = %i\n\n", htable->size, htable->logSize);
   for( int i = 0; i <= htable->mask; i++ ) {
-    printf(".... %d ....",i);
-    if(htable->table[i] != NULL)
+    printf("BUCKET %d ...",i);
+    if(htable->table[i] != NULL) {
       print_list(htable->table[i]);
+    }
+    printf("\n");
   }
+  printf("~~~ End Table ~~~\n\n");
 }
+
+
+void free_htable(hashtable_t *htable, int type) {
+  int i;
+  lockedTable_t *locked = NULL;
+  //lockFreeCTable_t *lockFreeC;
+  //linearProbeTable_t *linearProbe;
+  //awesomeTable_t *awesome;
+
+  switch(type) {
+  case(LOCKED):
+    locked = htable->locked;
+    for (i = 0; i < locked->size; i++) {
+      free(locked->table[i]);
+    }
+    for (i = 0; i < locked->numLocks; i++) {
+      pthread_rwlock_destroy(locked->rw_locks+i);
+    }
+    free(locked->table);
+    free(locked);
+    break;
+  }
+  free(htable);
+}
+

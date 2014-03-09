@@ -5,6 +5,8 @@
 #define NORM "\033[0m"
 #define RED "\033[0;31m"
 
+HashPacketGenerator_t * genSource;
+
 
 /* Format test results into pretty print statement */
 void res(int pass, char *test, char *arg) 
@@ -97,55 +99,176 @@ int TESTdequeue(int n) {
 }
 
 
-int TESTcreatetable(int initSize, int type) {
+int TESTcreatetable(int tableType, int numPkt, int numWorkers) {
   hashtable_t *t = (hashtable_t *)malloc(sizeof(hashtable_t));
 
-  switch(type) {
+  switch(tableType) {
   case(LOCKED):
-    t->locked = createLockedTable(initSize*2, 4, 1);
+    t->locked = createLockedTable(numPkt, 4, numWorkers);
     break;
   }
 
-  printf("Try?\n");
   HashPacketGenerator_t * source = createHashPacketGenerator(.25, .25, 0.5, 1000);
-  printf("Try?\n");
   int i = 0;
   int sum = 0;
   volatile HashPacket_t *pkt;
-  for (i=0; i < initSize; i++) {
+  for (i=0; i < numPkt; i++) {
     pkt = getAddPacket(source);
     add_locked(t, mangleKey((HashPacket_t *)pkt), pkt->body);
-    printf("Try?\n");
   }
 
-  print_locked(t->locked);
-
-  switch(type) {
+  switch(tableType) {
   case(LOCKED):
-    for (i = 0; i < initSize*2; i++) {
-      sum += (t->locked->table)[i]->size;
+    for (i = 0; i < (t->locked->size); i++) {
+      if ((t->locked->table)[i] != NULL) {
+	sum +=  (t->locked->table)[i]->size;
+      }
     }
-    i = (t->locked->size == initSize*2) && (t->locked->maxBucketSize == 4) && (sum == initSize);
+    i = (t->locked->size == (1 << numPkt)) && (t->locked->maxBucketSize == 4) && (sum == numPkt) && (t->locked->logSize == log2(t->locked->size));
+    free_htable(t, tableType);
   }
-  free(t);
   return i;
+}
+
+
+void addWorker(ParallelPacketWorker_t *data) {
+  volatile HashPacket_t * pkt;
+  //HashList_t **queues = data->queues;
+  hashtable_t *table = data->table;
+  //print_locked(table->locked);
+  
+  void (*addf)(hashtable_t *, int, volatile Packet_t *) = data->addf;
+  while (data->myCount) {
+    //printf("FROM THREAD %i, count = %i\n", data->tid, data->myCount);
+    pkt = getRandomPacket(genSource);
+    (*addf)(table, mangleKey((HashPacket_t *)pkt), pkt->body);
+    (data->myCount)--;
+  }
+}
+
+
+int TESTadd(int tableType, int numPkt, int numWorkers) 
+{
+  int i, rc;  
+  if (numPkt % numWorkers) {
+    fprintf(stderr,"ERROR: pkts not divisible by workers\n");
+    exit(-1);
+  }
+  
+  // allocate and initialize queues + fingerprints
+  HashList_t *queues[numWorkers];
+  long fingerprints[numWorkers];
+  for (i = 0; i < numWorkers; i++) {
+    queues[i] = createHashList();
+    fingerprints[i] = 0;
+  }
+  
+  genSource = createHashPacketGenerator(.25, .25, 0.5, 1000);
+
+  // Initialize Table + worker data
+  pthread_t worker[numWorkers];
+  ParallelPacketWorker_t data[numWorkers];
+  hashtable_t *htable = initTable(4, 0, data, genSource, numWorkers, NULL, queues, fingerprints, tableType);
+  
+  for (i = 0 ; i < numWorkers; i++) {
+    data[i].myCount = numPkt/numWorkers;
+  }
+
+  // Spawn Workers
+  for (i = 0; i <numWorkers; i++) {
+    if ((rc = pthread_create(worker+i, NULL, (void *) &addWorker, (void *) (data+i)))) {
+      fprintf(stderr,"ERROR: return code from pthread_create() for thread is %d\n", rc);
+      exit(-1);
+    }
+  }
+  
+  // call join for each Worker
+  for (i = 0; i < numWorkers; i++) {
+    pthread_join(worker[i], NULL);
+  }
+
+  int res = (numPkt == countPkt(htable, tableType));
+  if (!res) {
+    print_locked(htable->locked);
+    printf("size %i == packets %i ?\n", countPkt(htable, tableType), numPkt);
+  }
+  //print_locked(htable->locked);
+  free_htable(htable, tableType);
+  return res;
+}
+
+
+int TESTremove(int tableType, int numPkt, int numWorkers) 
+{
+  int i, rc;  
+  if (numPkt % numWorkers) {
+    fprintf(stderr,"ERROR: pkts not divisible by workers\n");
+    exit(-1);
+  }
+  
+  // allocate and initialize queues + fingerprints
+  HashList_t *queues[numWorkers];
+  long fingerprints[numWorkers];
+  for (i = 0; i < numWorkers; i++) {
+    queues[i] = createHashList();
+    fingerprints[i] = 0;
+  }
+  
+  genSource = createHashPacketGenerator(.25, .25, 0.5, 1000);
+
+  // Initialize Table + worker data
+  pthread_t worker[numWorkers];
+  ParallelPacketWorker_t data[numWorkers];
+  hashtable_t *htable = initTable(4, 0, data, genSource, numWorkers, NULL, queues, fingerprints, tableType);
+  
+  for (i = 0 ; i < numWorkers; i++) {
+    data[i].myCount = numPkt/numWorkers;
+  }
+  
+  // Spawn Workers
+  for (i = 0; i <numWorkers; i++) {
+    if ((rc = pthread_create(worker+i, NULL, (void *) &addWorker, (void *) (data+i)))) {
+      fprintf(stderr,"ERROR: return code from pthread_create() for thread is %d\n", rc);
+      exit(-1);
+    }
+  }
+  
+  // call join for each Worker
+  for (i = 0; i < numWorkers; i++) {
+    pthread_join(worker[i], NULL);
+  }
+  
+  int res = (numPkt == countPkt(htable, tableType));
+ 
+  if (!res) {
+    print_locked(htable->locked);
+    printf("size %i == packets %i ?\n", countPkt(htable, tableType), numPkt);
+  }
+  free_htable(htable, tableType);
+  return res;
 }
 
 
 int main()
 {
-  //int trials = 1;
-
+  //int trials = 1; 
   printf("\nRunning Framework Tests\n");
   printf("---\n");
-  //res(TESTserial(), "SERIAL", "(n = 1)");
-  //res(TESTenqueue(12), "ENQUEUE", "(numPkt = 12)");
-  //res(TESTdequeue(12), "DEQUEUE", "(numPkt = 12)");
+  res(TESTserial(), "SERIAL", "(n = 1)");
+  res(TESTenqueue(12), "ENQUEUE", "(numPkt = 12)");
+  res(TESTdequeue(12), "DEQUEUE", "(numPkt = 12)");
   printf("---\n");
-  printf("\nRunning Framework Tests\n");
+  printf("\nRunning Locked Table Tests\n");
   printf("---\n");
-  res(TESTcreatetable(2, 1), "CREATE", "(sz = 2)");
-  res(TESTcreatetable(16, 1), "CREATE", "(sz = 16)");
- 
+  res(TESTcreatetable(1, 1, 1), "CREATE", "(sz = 1, n = 1)");
+  res(TESTcreatetable(1, 16, 1), "CREATE", "(sz = 16, n = 1)");
+  res(TESTcreatetable(1, 16, 16), "CREATE", "(sz = 16, n = 16)"); 
+  res(TESTadd(1, 1, 1), "ADD", "(pkts = 1, n = 1)"); 
+  res(TESTadd(1, 8, 1), "ADD", "(pkts = 8, n = 1)");  
+  res(TESTadd(1, 16, 1), "ADD", "(pkts = 16, n = 1)");
+  res(TESTadd(1, 8, 2), "ADD", "(pkts = 8, n = 2)");  
+  res(TESTadd(1, 16, 2), "ADD", "(pkts = 16, n = 2)"); 
+  res(TESTadd(1, 64, 16), "ADD", "(pkts = 64, n = 16)"); 
+  printf("---\n");
   return 0;
 }

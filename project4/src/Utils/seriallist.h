@@ -31,4 +31,6 @@ void addNoCheck_list(SerialList_t * list, int key, volatile Packet_t * value);
 
 void print_list(SerialList_t * list);
 
+int list_len(SerialList_t *list);
+
 #endif /* SERIALLIST_H_ */

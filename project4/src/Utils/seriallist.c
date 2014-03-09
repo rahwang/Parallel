@@ -1,7 +1,20 @@
-
 #include<stdlib.h>
 #include <stdio.h>
 #include "seriallist.h"
+
+/* Get list length  */
+int list_len(SerialList_t *q) {
+  int count = 0;
+  if (!q) {
+    return count;
+  }
+  Item_t *curr = q->head;
+  while (curr) {
+    count++;
+    curr = curr->next;
+  }
+  return count;
+}
 
 SerialList_t *  createSerialList()
 {
@@ -70,35 +83,38 @@ bool remove_list(SerialList_t * list, int key){
 	}
 	return false;
 }
-void add_list(SerialList_t * list, int key, volatile Packet_t * value){
-	Item_t * tmpItem = getItem_list(list,key);
 
-	if(tmpItem != NULL){
-		tmpItem->value = value;
-	}else{
-		Item_t * newItem = (Item_t *)malloc(sizeof(Item_t));
-		newItem->key = key;
-		newItem->value = value;
-		newItem->next = list->head;
-		list->head = newItem;
-		list->size++;
-	}
+void add_list(SerialList_t * list, int key, volatile Packet_t * value){
+  Item_t * tmpItem = getItem_list(list,key);
+  
+  if(tmpItem != NULL){
+    tmpItem->value = value;
+  }else{
+    Item_t * newItem = (Item_t *)malloc(sizeof(Item_t));
+    newItem->key = key;
+    newItem->value = value;
+    newItem->next = list->head;
+    list->head = newItem;
+    list->size++;
+  }
 }
+
 void addNoCheck_list(SerialList_t * list, int key, volatile Packet_t * value){
 
-	Item_t * newItem = (Item_t *)malloc(sizeof(Item_t));
-	newItem->key = key;
-	newItem->value = value;
-	newItem->next = list->head;
-	list->head = newItem;
-	list->size++;
+  Item_t * newItem = (Item_t *)malloc(sizeof(Item_t));
+  newItem->key = key;
+  newItem->value = value;
+  newItem->next = list->head;
+  list->head = newItem;
+  list->size++;
 }
 
 void print_list(SerialList_t * list){
-	Item_t * curr = list->head;
-
-	while(curr != NULL){
-		printf("addr:%p\tkey:%d\tvalue:%p\n",curr,curr->key,curr->value);
-		curr = curr->next;
-	}
+  Item_t * curr = list->head;
+  //int len = list_len(list);
+  printf(" # ITEMS = %i\n", list->size);
+  while(curr != NULL){
+    printf("    addr:%p\tkey:%d\tvalue:%p\n",curr,curr->key,curr->value);
+    curr = curr->next;
+  }
 }

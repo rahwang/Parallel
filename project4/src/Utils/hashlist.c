@@ -2,6 +2,18 @@
 #include <stdio.h>
 #include "hashlist.h"
 
+/* Get queue length
+ */
+int hashlist_len(HashList_t *list) {
+  HashItem_t *curr = list->head;
+  int count = 0;
+  while (curr) {
+    count++;
+    curr = curr->next;
+  }
+  return count;
+}
+
 HashList_t *  createHashList()
 {
 	HashList_t * list = (HashList_t *)malloc(sizeof(HashList_t));

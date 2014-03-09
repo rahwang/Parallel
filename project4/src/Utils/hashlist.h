@@ -33,4 +33,6 @@ void addNoCheck_hashlist(HashList_t * list, int key, volatile HashPacket_t * val
 
 void print_hashlist(HashList_t * list);
 
+int hashlist_len(HashList_t *list);
+
 #endif /* SERIALLIST_H_ */

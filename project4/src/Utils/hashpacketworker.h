@@ -19,8 +19,9 @@ typedef struct ParallelPacketWorker_t{
   hashtable_t * table;
   long totalPackets;
   HashList_t **queues;
-  int tid;
-  int n;
+  volatile int tid;
+  volatile int n;
+  volatile int myCount;
   void (*addf) (hashtable_t *, int, volatile Packet_t *);
   bool (*removef) (hashtable_t *, int);
   bool (*containsf) (hashtable_t *, int);

@@ -40,37 +40,46 @@ long parallelHashPacketTest(int numMilliseconds,
 			    int tableType);
 
 lockedTable_t *initLocked(int maxBucketSize, int initSize, 
-			  HashPacketGenerator_t *source, 
-			  ParallelPacketWorker_t *data, 
+			  ParallelPacketWorker_t *data,
+			  HashPacketGenerator_t * source, 
 			  int numWorkers,
 			  PaddedPrimBool_NonVolatile_t * done,
 			  HashList_t **queues,
 			  long *fingerprints);
 
 lockFreeCTable_t *initLockFreeC(int maxBucketSize, int initSize, 
-			  HashPacketGenerator_t *source, 
-			  ParallelPacketWorker_t *data, 
-			  int numWorkers,
-			  PaddedPrimBool_NonVolatile_t * done,
-			  HashList_t **queues,
-			  long *fingerprints);
+				ParallelPacketWorker_t *data,
+				HashPacketGenerator_t * source, 
+				int numWorkers,
+				PaddedPrimBool_NonVolatile_t * done,
+				HashList_t **queues,
+				long *fingerprints);
 
-linearProbeTable_t *initLinearProbe(int maxBucketSize, int initSize, 
-			  HashPacketGenerator_t *source, 
-			  ParallelPacketWorker_t *data, 
-			  int numWorkers,
-			  PaddedPrimBool_NonVolatile_t * done,
-			  HashList_t **queues,
-			  long *fingerprints);
+linearProbeTable_t *initLinearProbe(int maxBucketSize, int initSize,  
+				    ParallelPacketWorker_t *data,
+				    HashPacketGenerator_t * source, 
+				    int numWorkers,
+				    PaddedPrimBool_NonVolatile_t * done,
+				    HashList_t **queues,
+				    long *fingerprints);
 
 awesomeTable_t *initAwesome(int maxBucketSize, int initSize, 
-			  HashPacketGenerator_t *source, 
-			  ParallelPacketWorker_t *data, 
-			  int numWorkers,
-			  PaddedPrimBool_NonVolatile_t * done,
-			  HashList_t **queues,
-			  long *fingerprints);
+			    ParallelPacketWorker_t *data, 
+			    HashPacketGenerator_t * source,
+			    int numWorkers,
+			    PaddedPrimBool_NonVolatile_t * done,
+			    HashList_t **queues,
+			    long *fingerprints);
 
+hashtable_t *initTable(int maxBucketSize, int initSize, 
+		       ParallelPacketWorker_t *data, 
+		       HashPacketGenerator_t * source,
+		       int numWorkers,
+		       PaddedPrimBool_NonVolatile_t * done,
+		       HashList_t **queues,
+		       long *fingerprints,
+		       int tableType);
 void dispatch(void *args);
+int countPkt(hashtable_t *htable, int type);
 
 #endif /* HASHPACKETTEST_H_ */
