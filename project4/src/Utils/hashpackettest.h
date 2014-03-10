@@ -39,6 +39,17 @@ double parallelHashPacketTest(int numMilliseconds,
 			    int numWorkers,
 			    int tableType);
 
+double noloadHashPacketTest(int numMilliseconds,
+			    float fractionAdd,
+			    float fractionRemove,
+			    float hitRate,
+			    int maxBucketSize,
+			    long mean,
+			    int initSize,
+			    int numWorkers,
+			    int tableType);
+
+
 lockedTable_t *initLocked(int maxBucketSize, int initSize, 
 			  ParallelPacketWorker_t *data,
 			  HashPacketGenerator_t * source, 

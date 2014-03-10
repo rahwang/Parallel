@@ -508,8 +508,61 @@ void speedups(int time, int n, int testType) {
 }
 
 
+void dispatcher(int time, int n, int testType) {
+  float adds = 0.09;
+  float rems = 0.01;
+  float hit = 0.5;
+  float s = 16;
+  int b = 12;
+  char *type;
+  int W = 8000;
+
+  switch(testType) {
+  case(o_reads):
+    adds = 0.09;
+    rems = 0.01;
+    hit = 0.9;
+    type = "reads";
+    break;
+  case(o_writes):
+    adds = 0.45;
+    rems = 0.05;
+    hit = 0.9;
+    type = "writes";
+    break;
+  case(s_reads):
+    adds = 0.09;
+    rems = 0.01;
+    hit = 0.75;
+    type = "reads";
+    break;
+  case(s_writes):
+    adds = 0.45;
+    rems = 0.05;
+    hit = 0.75;
+    type = "writes";
+    break;
+  }
+
+  double dis = noloadHashPacketTest(time, adds, rems, hit, b, W, s, n, 1);
+  double parallel;
+
+  printf("\n~~~~ Speedups (n = %i, type = %s) ~~~~ \n\n", n, type); 
+  printf("Dispatcher packets = %15f\n\n", dis); 
+
+  parallel = parallelHashPacketTest(time, adds, rems, hit, b, W, s, n, 1);
+  printf("LOCKED = %15f\n", parallel/dis); 
+  parallel = parallelHashPacketTest(time, adds, rems, hit, b, W, s, n, 2);
+  printf("LOCKFC = %15f\n", parallel/dis);
+  parallel = parallelHashPacketTest(time, adds, rems, hit, b, W, s, n, 3);
+  printf("LINEAR = %15f\n", parallel/dis); 
+  // parallel = parallelHashPacketTest(time, .25, .25, .5, 4, W, 4, n, 1);
+  //printf("LOCKED Speedup (n = %i) = %li\n", n, parallel/serial);*/
+}
+
+
 int main()
-{
+{ 
   printf("\nRunning Framework Tests\n");
   printf("---\n");
   res(TESTserial(), "SERIAL", "(n = 1)");
@@ -578,14 +631,30 @@ int main()
   res(TESTintegration(3, 2000, 1), "INTEGRATION", "(time = 2000, n = 1)");
   res(TESTintegration(3, 2000, 16), "INTEGRATION", "(time = 2000, n = 16)"); 
   res(TESTintegration(3, 2000, 32), "INTEGRATION", "(time = 2000, n = 32)"); 
-  printf("---\n");
+  printf("---\n"); 
 
   //speedups(2000, 4, o_reads);
   //speedups(2000, 4, o_writes);
-  speedups(1000, 8, s_reads);
-  speedups(1000, 8, s_writes);
-  //speedups(2000, 16, s_reads);
-  //speedups(2000, 16, s_writes);
+  speedups(2000, 4, s_reads);
+  speedups(2000, 4, s_writes);
+  speedups(2000, 8, s_reads);
+  speedups(2000, 8, s_writes);
+  speedups(2000, 10, s_reads);
+  speedups(2000, 10, s_writes);
+  speedups(2000, 15, s_reads);
+  speedups(2000, 15, s_writes);
+  speedups(2000, 16, s_reads);
+  speedups(2000, 16, s_writes);
+  /*  dispatcher(200, 4, s_reads);
+  dispatcher(200, 4, s_writes);
+  dispatcher(200, 8, s_reads);
+  dispatcher(200, 8, s_writes);
+  dispatcher(200, 10, s_reads);
+  dispatcher(200, 10, s_writes);
+  dispatcher(200, 15, s_reads);
+  dispatcher(200, 15, s_writes);
+  dispatcher(200, 16, s_reads);
+  dispatcher(200, 16, s_writes); */
 
 
   return 0;

@@ -55,12 +55,26 @@ void parallelWorker(ParallelPacketWorker_t * data){
 	(*removef)(table, mangleKey((HashPacket_t *)pkt));
 	break;
       case Contains:
-	//contains++;
 	//successful += (*containsf)(table, mangleKey((HashPacket_t *)pkt));
 	(*containsf)(table, mangleKey((HashPacket_t *)pkt));
 	break;
       }
-    data->myCount++;
+      data->myCount++;
+    }
+  }
+  //printf("%i Contains %f\n", data->tid, successful/(float)contains);
+}
+
+
+void noloadWorker(ParallelPacketWorker_t * data){
+  volatile HashPacket_t * pkt;
+  //hashtable_t *table = data->table;
+  HashList_t **queues = data->queues;
+  int i = data->tid;
+
+  while(*(data->go)) {
+    if ((pkt = getPacket(queues, i))) {
+      data->myCount++;
     }
   }
   //printf("%i Contains %f\n", data->tid, successful/(float)contains);

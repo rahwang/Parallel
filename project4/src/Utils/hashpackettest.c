@@ -169,6 +169,105 @@ double parallelHashPacketTest(int numMilliseconds,
   return totalCount;
 }
 
+
+double noloadHashPacketTest(int numMilliseconds,
+			    float fractionAdd,
+			    float fractionRemove,
+			    float hitRate,
+			    int maxBucketSize,
+			    long mean,
+			    int initSize,
+			    int numWorkers,
+			    int tableType)
+{
+  StopWatch_t timer;
+  int i, rc;
+  volatile int go = 1;
+
+  
+  // allocate and initialize queues + fingerprints
+  HashList_t *queues[numWorkers];
+  long fingerprints[numWorkers];
+  for (i = 0; i < numWorkers; i++) {
+    queues[i] = createHashList();
+    fingerprints[i] = 0;
+  }
+  
+  // Create packet source
+  HashPacketGenerator_t * source = createHashPacketGenerator(fractionAdd,fractionRemove,hitRate,mean);
+  
+  // Initialize htable + arguments by type
+  pthread_t worker[numWorkers];
+  ParallelPacketWorker_t data[numWorkers];
+  hashtable_t *htable = initTable(maxBucketSize, initSize, data, source, numWorkers, &go, queues, fingerprints, tableType);
+  
+  // Spawn Workers
+  for (i = 0; i <numWorkers; i++) {
+    if ((rc = pthread_create(worker+i, NULL, (void *) &noloadWorker, (void *) (data+i)))) {
+      fprintf(stderr,"ERROR: return code from pthread_create() for thread is %d\n", rc);
+      exit(-1);
+    }
+  }
+  
+  // Dispatcher 
+  pthread_t dispatcher;
+  dispatch_t dispatchData;
+  dispatchData.source = source;
+  dispatchData.queues = queues;
+  dispatchData.n = numWorkers;
+  dispatchData.count = 0;
+  dispatchData.go = &go;
+  
+  // Start timing
+  struct timespec tim;  
+  millToTimeSpec(&tim,numMilliseconds);
+  startTimer(&timer);
+  
+  // start your Dispatcher
+  if ((rc = pthread_create(&dispatcher, NULL, (void *)&dispatch, &dispatchData))) {
+    fprintf(stderr,"ERROR: return code from pthread_create() for dispatch thread is %d\n", rc);
+    exit(-1);
+  }
+    
+  // Sleep
+  nanosleep(&tim , NULL);
+ 
+  // assert signals to stop Dispatcher
+  go = 0;  
+  
+  // call join on Dispatcher
+  pthread_join(dispatcher, NULL);
+  
+  // call join for each Worker
+  double totalCount = 0;
+  for (i = 0; i < numWorkers; i++) {
+    pthread_join(worker[i], NULL);
+    totalCount += data[i].myCount;
+  }
+
+  /*
+  double avg = totalCount/numWorkers;
+  printf("avg: %f \n", avg);
+
+  for (i = 0; i < numWorkers; i++) {
+    printf("Thread %i: %f \n", i, data[i].myCount - avg);
+    }*/
+  
+  // Stop timing
+  stopTimer(&timer);
+
+  //printf("tree size: %li \n", countPkt(htable, tableType));
+  
+  free_htable(htable, tableType);
+  // report the total number of packets processed and total time
+  //printf("count: %f \n", totalCount);
+  //printf("time: %f\n",getElapsedTime(&timer));
+  //printf("%f inc / ms\n", totalCount/getElapsedTime(&timer));
+  //return totalCount;
+  return dispatchData.count;
+}
+
+
 hashtable_t *initTable(int maxBucketSize, int initSize, 
 		       ParallelPacketWorker_t *data, 
 		       HashPacketGenerator_t * source,
@@ -346,7 +445,7 @@ void dispatch(void *args)
   while(*(data->go)) {
     for (i = 0; i < data->n; i++) {
       volatile HashPacket_t *pkt = getRandomPacket(data->source);
-      sum += enqueue((data->queues)[i], 12, pkt, sum);
+      sum += enqueue((data->queues)[i], 50, pkt, sum);
     }
   }
   data->count = sum;

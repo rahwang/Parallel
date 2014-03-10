@@ -448,17 +448,18 @@ bool contains_lockFreeC(hashtable_t * htable, int key)
   int oldSize = table->logSize;
   int idx = key & table->mask;
   
-  if(table->table[idx] != NULL ) {
-    res = contains_list(table->table[idx],key);
+  if(table->table[idx]) {
+    res = contains_list(table->table[idx], key);
   }
   else {
-    res = false;
+    return false;
   }
   if (table->logSize != oldSize) {
     return contains_lockFreeC(htable, key);
   }
   return res;
 }
+
 
 void resize_lockFreeC(lockFreeCTable_t * table)
 {
