@@ -20,7 +20,7 @@ typedef struct dispatch_t{
   volatile int *go;
 } dispatch_t;
 
-long serialHashPacketTest(int numMilliseconds,
+double serialHashPacketTest(int numMilliseconds,
 			  float fractionAdd,
 			  float fractionRemove,
 			  float hitRate,
@@ -29,7 +29,7 @@ long serialHashPacketTest(int numMilliseconds,
 			  int initSize);
 
 
-long parallelHashPacketTest(int numMilliseconds,
+double parallelHashPacketTest(int numMilliseconds,
 			    float fractionAdd,
 			    float fractionRemove,
 			    float hitRate,

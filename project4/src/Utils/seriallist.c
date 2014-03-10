@@ -41,7 +41,7 @@ Item_t * getItem_list(SerialList_t * list, int key){
 
   Item_t * curr = list->head;
   
-  while(curr != NULL){
+  while(curr){
     if(curr->key == key)
       return curr;
     curr = curr->next;
@@ -59,27 +59,26 @@ bool remove_list(SerialList_t * list, int key){
   
   Item_t * curr = list->head;
   
-  if(curr == NULL)
+  if(curr == NULL) {
     return false;
-	else if (curr->key ==key){
-	  Item_t * temp = curr;
-	  list->head = list->head->next;
-	  free(temp);
-	  __sync_fetch_and_sub(&(list->size), 1);
-	  return true;
-	}else{
-	  while(curr->next != NULL) {
-	    if(curr->next->key == key){
-	      Item_t * temp = curr->next;
-	      curr->next = curr->next->next;
-	      free(temp);
-	      __sync_fetch_and_sub(&(list->size), 1);
-	      return true;
-	    }
-	    else
-	      curr = curr->next;
-	  }
-	}
+  }
+  else if (curr->key ==key){
+    Item_t * temp = curr = __sync_lock_test_and_set(&list->head, list->head->next);
+    __sync_fetch_and_sub(&(list->size), 1);
+    free(temp);
+    return true;
+  }else{
+    while(curr->next) {
+      if(curr->next->key == key){
+	Item_t * temp = __sync_lock_test_and_set(&curr->next, curr->next->next);
+	__sync_fetch_and_sub(&(list->size), 1);
+	free(temp);
+	return true;
+      }
+      else
+	curr = curr->next;
+    }
+  }
   return false;
 }
 

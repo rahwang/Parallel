@@ -7,7 +7,7 @@ void millToTimeSpec(struct timespec *ts, unsigned long ms)
 }
 
 
-long serialHashPacketTest(int numMilliseconds,
+double serialHashPacketTest(int numMilliseconds,
 			  float fractionAdd,
 			  float fractionRemove,
 			  float hitRate,
@@ -18,11 +18,8 @@ long serialHashPacketTest(int numMilliseconds,
   
   StopWatch_t timer;
   
-  PaddedPrimBool_NonVolatile_t done;
-  done.value = false;
-  
-  // PaddedPrimBool_t memFence;
-  // memFence.value = false;
+  // Create timer flag
+  volatile int go = 1;
   
   HashPacketGenerator_t * source = createHashPacketGenerator(fractionAdd,fractionRemove,hitRate,mean);
   serialTable_t * table = createSerialTable(1, maxBucketSize);
@@ -39,7 +36,7 @@ long serialHashPacketTest(int numMilliseconds,
   
   millToTimeSpec(&tim,numMilliseconds);
   
-  SerialPacketWorker_t  workerData = {&done, source, table,0,0,0};
+  SerialPacketWorker_t  workerData = {&go, source, table,0,0,0};
   
   rc = pthread_create(&workerThread, NULL, (void *) &serialWorker, (void *) &workerData);
   
@@ -54,10 +51,8 @@ long serialHashPacketTest(int numMilliseconds,
   
   nanosleep(&tim, NULL);
   
-  done.value = true;
-  
-  //memFence.value = true;
-	
+  go = 0;
+  	
   rc = pthread_join(workerThread, NULL);
   if (rc){
     fprintf(stderr,"firewall error: return code for the threads using pthread_join() for solo thread  is %d\n", rc);
@@ -69,7 +64,7 @@ long serialHashPacketTest(int numMilliseconds,
   //print_serial(table);
   free_serial(table);
   
-  long totalCount = workerData.totalPackets;
+  double totalCount = (double)workerData.totalPackets;
   //printf("count: %ld \n", totalCount);
   //printf("time: %f\n",getElapsedTime(&timer));
   //printf("%f inc / ms\n", totalCount/getElapsedTime(&timer));
@@ -78,7 +73,7 @@ long serialHashPacketTest(int numMilliseconds,
 }
 
 
-long parallelHashPacketTest(int numMilliseconds,
+double parallelHashPacketTest(int numMilliseconds,
 			    float fractionAdd,
 			    float fractionRemove,
 			    float hitRate,
@@ -147,19 +142,23 @@ long parallelHashPacketTest(int numMilliseconds,
   pthread_join(dispatcher, NULL);
   
   // call join for each Worker
+  double totalCount = 0;
   for (i = 0; i < numWorkers; i++) {
     pthread_join(worker[i], NULL);
+    totalCount += data[i].myCount;
   }
   
   // Stop timing
   stopTimer(&timer);
+
+  
   
   free_htable(htable, tableType);
   // report the total number of packets processed and total time
-  //printf("count: %ld \n", totalCount);
+  //printf("count: %f \n", totalCount);
   //printf("time: %f\n",getElapsedTime(&timer));
   //printf("%f inc / ms\n", totalCount/getElapsedTime(&timer));
-  return 0;
+  return totalCount;
 }
 
 hashtable_t *initTable(int maxBucketSize, int initSize, 
@@ -176,10 +175,10 @@ hashtable_t *initTable(int maxBucketSize, int initSize,
   switch(tableType) {
   case(LOCKED):
     htable->locked = initLocked(maxBucketSize, initSize, data, source, numWorkers, go, queues, fingerprints);
-    break;/*
+    break;
   case(LOCKFREEC):
     htable->lockFreeC = initLockFreeC(maxBucketSize, initSize, data, source, numWorkers, go, queues, fingerprints);
-    break;
+    break;/*
   case(LINEARPROBED):
     htable->linearProbe = initLinearProbe(maxBucketSize, initSize, data, source, numWorkers, go, queues, fingerprints);
     break;
@@ -211,7 +210,7 @@ lockedTable_t *initLocked(int maxBucketSize, int initSize,
   }
   for (i = 0; i < numWorkers; i++) {
     data[i].go = go;
-    data[i].totalPackets = 0;
+    //data[i].totalPackets = 0;
     data[i].queues = queues;
     data[i].tid = i;
     data[i].n = numWorkers;
@@ -224,27 +223,28 @@ lockedTable_t *initLocked(int maxBucketSize, int initSize,
   }
   return htable->locked;
 }
-/*
+
 lockFreeCTable_t *initLockFreeC(int maxBucketSize, int initSize, 
-			  HashPacketGenerator_t *source, 
 			  ParallelPacketWorker_t *data, 
+			  HashPacketGenerator_t * source,
 			  int numWorkers,
-			  PaddedPrimBool_NonVolatile_t * go,
+			  volatile int* go,
 			  HashList_t **queues,
 			  long *fingerprints) 
 {
-  int base = (initSize == 0) ? 4 : initSize*2;
-  lockFreeCTable_t *new = createLockFreeCTable(base, maxBucketSize);
+  int base = (initSize == 0) ? 2 : initSize*2;
+  hashtable_t *htable = (hashtable_t *)malloc(sizeof(hashtable_t));
+  htable->lockFreeC = createLockFreeCTable(base, maxBucketSize, numWorkers);
   HashPacket_t *pkt;
 
   int i;
   for (i = 0; i < initSize; i++) {
     pkt = getAddPacket(source);
-    addNoCheck_lockFreeC(new, pkt->key, pkt->body);
+    addNoCheck_lockFreeC(htable->lockFreeC, pkt->key, pkt->body);
   }
   for (i = 0; i < numWorkers; i++) {
     data[i].go = go;
-    data[i].totalPackets = 0;
+    //data[i].totalPackets = 0;
     data[i].queues = queues;
     data[i].tid = i;
     data[i].n = numWorkers;
@@ -255,10 +255,9 @@ lockFreeCTable_t *initLockFreeC(int maxBucketSize, int initSize,
     data[i].myCount = 0;
     data[i].table = htable;
   }
-
-  return new;
+  return htable->lockFreeC;
 }
-
+/*
 linearProbeTable_t *initLinearProbe(int maxBucketSize, int initSize, 
 				    HashPacketGenerator_t *source, 
 				    ParallelPacketWorker_t *data, 

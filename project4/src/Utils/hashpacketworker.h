@@ -6,7 +6,7 @@
 #include "hashtable.h"
 
 typedef struct SerialPacketWorker_t{
-  PaddedPrimBool_NonVolatile_t * done;
+  volatile int *go;
   HashPacketGenerator_t * source;
   serialTable_t * table;
   long totalPackets;
@@ -17,11 +17,11 @@ typedef struct SerialPacketWorker_t{
 typedef struct ParallelPacketWorker_t{
   volatile int *go;
   hashtable_t * table;
-  long totalPackets;
+  //volatile long totalPackets;
   HashList_t **queues;
   volatile int tid;
   volatile int n;
-  volatile int myCount;
+  volatile long myCount;
   void (*addf) (hashtable_t *, int, volatile Packet_t *);
   bool (*removef) (hashtable_t *, int);
   bool (*containsf) (hashtable_t *, int);

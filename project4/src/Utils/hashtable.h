@@ -46,7 +46,8 @@ typedef struct lockFreeCTable_t {
   volatile int mask;
   volatile int maxBucketSize;
   volatile int size;
-  volatile SerialList_t ** table;
+  volatile int *entries;
+  SerialList_t ** table;
   volatile int numLocks;
   pthread_mutex_t *locks;
 } lockFreeCTable_t;
@@ -93,8 +94,8 @@ bool contains_locked(hashtable_t * htable,int key);
 void resize_locked(lockedTable_t * table);
 void print_locked(lockedTable_t * table);
 
-/* For lock-free-contains hash table 
-lockFreeCTable_t * createLockFreeCTable(int logSize, int maxBucketSize);
+/* For lock-free-contains hash table */
+lockFreeCTable_t * createLockFreeCTable(int logSize, int maxBucketSize, int n);
 void resizeIfNecessary_lockFreeC(lockFreeCTable_t * htable,int key);
 void addNoCheck_lockFreeC(lockFreeCTable_t * htable,int key, volatile Packet_t * x);
 void add_lockFreeC(hashtable_t * htable,int key, volatile Packet_t * x);
@@ -102,7 +103,7 @@ bool remove_lockFreeC(hashtable_t * htable,int key);
 bool contains_lockFreeC(hashtable_t * htable,int key);
 void resize_lockFreeC(lockFreeCTable_t * htable);
 void print_lockFreeC(lockFreeCTable_t * htable);
-*/
+
 /* For serial hash table
 linearProbeTable_t * createLinearProbeTable(int logSize, int maxBucketSize);
 void resizeIfNecessary_linearProbe(linearProbeTable_t * htable,int key);

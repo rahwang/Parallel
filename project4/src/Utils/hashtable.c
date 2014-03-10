@@ -320,3 +320,184 @@ void free_htable(hashtable_t *htable, int type) {
   free(htable);
 }
 
+
+lockFreeCTable_t * createLockFreeCTable(int logSize, int maxBucketSize, int n)
+{
+  int i;
+  lockFreeCTable_t * htable = (lockFreeCTable_t *)malloc(sizeof(lockFreeCTable_t));
+  htable->entries = (int *)malloc(sizeof(int));
+  *(htable->entries) = 0;
+  htable->logSize = logSize;
+  htable->maxBucketSize = maxBucketSize;
+  htable->mask = (1 << logSize) - 1;
+  int tableSize = (1 << logSize);
+  htable->size = tableSize;
+  htable->table = (SerialList_t **)malloc(sizeof(SerialList_t*)* tableSize);
+  for(i =0; i < tableSize; i++) {
+    htable->table[i] = NULL;
+  }
+  htable->numLocks = n;
+  pthread_mutex_t *locks = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t)*n);
+  for (i = 0; i < n; i++) {
+    pthread_mutex_init(locks+i, NULL);
+  }
+  htable->locks = locks;
+  return htable;
+}
+
+
+void resizeIfNecessary_lockFreeC(lockFreeCTable_t * table, volatile int key){	
+  int i;
+  int idx = key & table->mask;
+  int oldsize = table->logSize;
+
+  //if (*(table->entries) > (table->size)*POLICY) {
+  if (table->table[idx] != NULL
+      && table->table[idx]->size >= table->maxBucketSize) {
+    for (i = 0; i < (table->numLocks); i++) {
+      pthread_mutex_lock((table->locks)+i);
+      //printf("Lock %i\n", i);
+    }
+    if (oldsize == table->logSize) {
+	resize_lockFreeC(table);
+    }
+    for (i = 0; i < (table->numLocks); i++) {
+      pthread_mutex_unlock((table->locks)+i);
+      //printf("Unlock %i\n", i);
+    }
+  }
+}
+
+
+void addNoCheck_lockFreeC(lockFreeCTable_t * table, int key, volatile Packet_t * x)
+{
+  pthread_mutex_t *locks = table->locks;
+  int oldSize = table->logSize;
+  int idx = key & table->mask;
+  int lidx = idx % table->numLocks;
+
+  pthread_mutex_lock(locks+lidx);
+  //printf("Lock %i\n", lidx);
+  if (oldSize != table->logSize) {
+    pthread_mutex_unlock(locks+lidx);
+    addNoCheck_lockFreeC(table, key, x);
+    return;
+  }
+  if(table->table[idx] == NULL) {
+    table->table[idx] = createSerialListWithItem(key, x);
+  }
+  else {
+    //printf("Adding to list\n"); 
+    addNoCheck_list(table->table[idx],key,x);
+  }
+  pthread_mutex_unlock(locks+lidx);
+  //printf("unlock %i\n", lidx);
+}
+
+
+void add_lockFreeC(hashtable_t * htable, int key, volatile Packet_t * x)
+{
+  lockFreeCTable_t *table = htable->lockFreeC;
+  resizeIfNecessary_lockFreeC(table, key);
+  addNoCheck_lockFreeC(table, key, x);
+}
+
+
+bool remove_lockFreeC(hashtable_t * htable,int key)
+{
+  lockFreeCTable_t *table = htable->lockFreeC;
+  pthread_mutex_t *locks = table->locks;
+  resizeIfNecessary_lockFreeC(table, key);
+
+  bool res;
+  int oldSize = table->logSize;
+  int idx = key & table->mask;
+  int lidx = idx % table->numLocks;
+
+  pthread_mutex_lock(locks+lidx);
+  //printf("Lock %i\n", lidx);
+  if (oldSize != table->logSize) {
+    pthread_mutex_unlock(locks+lidx);
+    return remove_lockFreeC(htable, key);
+  }
+  if( table->table[idx] != NULL ) {
+    res = remove_list(table->table[idx],key);
+  }
+  else {
+    res = false;
+  }
+  pthread_mutex_unlock(locks+lidx);
+  //printf("Unlock %i\n", lidx);
+  return res;
+}
+
+
+bool contains_lockFreeC(hashtable_t * htable, int key) 
+{
+  lockFreeCTable_t *table = htable->lockFreeC;
+  bool res;
+  int oldSize = table->logSize;
+  int idx = key & table->mask;
+  
+  if(table->table[idx] != NULL ) {
+    res = contains_list(table->table[idx],key);
+  }
+  else {
+    res = false;
+  }
+  if (table->logSize != oldSize) {
+    return contains_lockFreeC(htable, key);
+  }
+  return res;
+}
+
+void resize_lockFreeC(lockFreeCTable_t * table)
+{
+  int i;
+  int newTableSize = table->size * 2;
+  SerialList_t ** newTable = (SerialList_t **)malloc(sizeof(SerialList_t*)* newTableSize);
+  for(i = 0; i < newTableSize; i++) {
+    newTable[i] = NULL;
+  }
+  
+  for(i = 0; i < table->size; i++ ) 
+    {
+      if( table->table[i] != NULL)
+	{
+	  Item_t * curr = table->table[i]->head;
+	  while( curr != NULL) 
+	    {
+	      Item_t * nextItem = curr->next;
+	      if(newTable[curr->key & ((2*table->mask)+1)] == NULL) {
+		newTable[curr->key & ((2*table->mask)+1)] = createSerialList();
+		curr->next = NULL;
+		newTable[curr->key & ((2*table->mask)+1)]->head = curr;
+	      }
+	      else {
+		curr->next = newTable[curr->key & ((2*table->mask)+1)]->head;
+		newTable[curr->key & ((2*table->mask)+1)]->head = curr;
+	      }
+	      curr=nextItem;
+	    }
+	}
+    }
+  SerialList_t ** temp = table->table;
+  table->logSize++;
+  table->size = table->size * 2;
+  table->mask = (1 << table->logSize) - 1;
+  table->table = newTable;
+  free(temp);
+}
+
+void print_lockFreeC(lockFreeCTable_t * htable)
+{
+  printf("\n~~~ Locked Table ~~~\nSize = %i\nLogSize = %i\n\n", htable->size, htable->logSize);
+  for( int i = 0; i <= htable->mask; i++ ) {
+    printf("BUCKET %d ...",i);
+    if(htable->table[i] != NULL) {
+      print_list(htable->table[i]);
+    }
+    printf("\n");
+  }
+  printf("~~~ End Table ~~~\n\n");
+}

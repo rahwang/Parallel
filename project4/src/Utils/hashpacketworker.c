@@ -7,7 +7,7 @@
 void serialWorker(SerialPacketWorker_t * data){
   HashPacket_t * pkt;
   
-  while( !data->done->value ) {
+  while(*(data->go)) {
     data->totalPackets++;
     pkt = getRandomPacket(data->source);
     data->residue += getFingerprint(pkt->body->iterations, pkt->body->seed);
@@ -39,7 +39,6 @@ void parallelWorker(ParallelPacketWorker_t * data){
 
   //printf("STARTING %i\n", data->tid);  
   while(*(data->go)) {
-    data->totalPackets++;
     if ((pkt = getPacket(queues, i))) {
       data->fingerprints += getFingerprint(pkt->body->iterations, pkt->body->seed);
       
@@ -54,6 +53,7 @@ void parallelWorker(ParallelPacketWorker_t * data){
 	(*containsf)(table, mangleKey((HashPacket_t *)pkt));
 	break;
       }
+    data->myCount++;
     }
   }
   //printf("DONE %i\n", data->tid);

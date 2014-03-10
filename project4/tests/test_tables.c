@@ -22,7 +22,7 @@ void res(int pass, char *test, char *arg)
 
 /* TEST serial hash table type */
 int TESTserial() {
-  return serialHashPacketTest(1, .25, .25, .5, 4, 1000, 1);
+  return serialHashPacketTest(1000, .25, .25, .5, 4, 4000, 4);
 }
 
 
@@ -105,38 +105,74 @@ int TESTcreatetable(int tableType, int numPkt, int numWorkers) {
   case(LOCKED):
     t->locked = createLockedTable(numPkt, 4, numWorkers);
     break;
+  case(LOCKFREEC):
+    t->lockFreeC = createLockFreeCTable(numPkt, 4, numWorkers);
+    break; /*
+  case(LINEARPROBED):
+    t->lockFreeC = createLockFreeCTable(numPkt, 4, numWorkers);
+    break;
+  case(AWESOME):
+    t->lockFreeC = createLockFreeCTable(numPkt, 4, numWorkers);
+    break; */
   }
 
   HashPacketGenerator_t * source = createHashPacketGenerator(.25, .25, 0.5, 1000);
   int i = 0;
   int sum = 0;
   volatile HashPacket_t *pkt;
-  for (i=0; i < numPkt; i++) {
-    pkt = getAddPacket(source);
-    add_locked(t, mangleKey((HashPacket_t *)pkt), pkt->body);
-  }
 
+  int size;
   switch(tableType) {
   case(LOCKED):
+    for (i=0; i < numPkt; i++) {
+      pkt = getAddPacket(source);
+      add_locked(t, mangleKey((HashPacket_t *)pkt), pkt->body);
+    }
     for (i = 0; i < (t->locked->size); i++) {
       if ((t->locked->table)[i] != NULL) {
 	sum +=  (t->locked->table)[i]->size;
       }
     }
-    if (t->locked->size != (1 << numPkt)) {
-      fprintf(stderr,"ERROR: Tree size incorrect. Got %i. Want %i.\n", t->locked->size, (1 << numPkt));
-      return 0;
+    size = t->locked->size;
+    break;
+  case(LOCKFREEC):
+    for (i=0; i < numPkt; i++) {
+      pkt = getAddPacket(source);
+      add_lockFreeC(t, mangleKey((HashPacket_t *)pkt), pkt->body);
     }
-    if (t->locked->maxBucketSize != 4) {
-      fprintf(stderr,"ERROR: maxBucketsize incorrect. Got %i. Want %i.\n", t->locked->maxBucketSize, 4);
-      return 0;
+    for (i = 0; i < (t->lockFreeC->size); i++) {
+      if ((t->lockFreeC->table)[i] != NULL) {
+	sum +=  (t->lockFreeC->table)[i]->size;
+      }
     }
-    if (sum != numPkt) {
-      fprintf(stderr,"ERROR: Number of entries incorrect. Got %i. Want %i.\n", sum, numPkt);
-      return 0;
+    size = t->lockFreeC->size;
+    break; /*
+  case(LINEARPROBED):
+    for (i = 0; i < (t->linearProbe->size); i++) {
+      if ((t->linearProbe->table)[i] != NULL) {
+	sum +=  (t->linearProbe->table)[i]->size;
+      }
     }
-    free_htable(t, tableType);
+    size = t->linearProbe->size;
+    break;
+  case(AWESOME):
+    for (i = 0; i < (t->awesome->size); i++) {
+      if ((t->awesome->table)[i] != NULL) {
+	sum +=  (t->awesome->table)[i]->size;
+      }
+    }
+    size = t->awesome->size;
+    break; */
   }
+  if (size != (1 << numPkt)) {
+    fprintf(stderr,"ERROR: Tree size incorrect. Got %i. Want %i.\n", size, (1 << numPkt));
+    return 0;
+  }
+  if (sum != numPkt) {
+    fprintf(stderr,"ERROR: Number of entries incorrect. Got %i. Want %i.\n", sum, numPkt);
+      return 0;
+  }
+  free_htable(t, tableType);
   return i;
 }
 
@@ -218,6 +254,7 @@ void containsWorker(ParallelPacketWorker_t *data) {
   bool (*containsf)(hashtable_t *, int) = data->containsf;
 
   while (data->myCount > 0) {
+    //printf("Hello %li\n", data->myCount);
     if (!((*containsf)(table, (data->myCount)-1)) ||
         ((*containsf)(table, (data->myCount)+top))) {
 	data->myCount = -1;
@@ -261,7 +298,16 @@ int TESTcontains(int tableType, int numPkt, int numWorkers)
       enqueue(queues[0], numPkt+1, pkt, i);
     }
     break;
+  case(LOCKFREEC):
+    for (i=0; i < numPkt; i++) {
+      pkt = getRandomPacket(genSource);
+      add_lockFreeC(htable, i, pkt->body);
+      enqueue(queues[0], numPkt+1, pkt, i);
+    }
+    break;
   }
+
+  //print_lockFreeC(htable->lockFreeC);
 
   // Spawn Workers
   for (i = 0; i <numWorkers; i++) {
@@ -341,6 +387,36 @@ int TESTremove(int tableType, int numPkt, int numWorkers)
       }
     }
     break;
+  case(LOCKFREEC):
+    for (i=0; i < (numPkt*2)/numWorkers; i++) {
+      for (j=0; j < numWorkers; j++) {
+	pkt = getRandomPacket(genSource);
+	pkt->key = (i*(numPkt*2)/numWorkers)+j;
+	add_lockFreeC(htable, pkt->key, pkt->body);
+	enqueue(queues[j], numPkt+1, pkt, i);
+      }
+    }
+    break; /*
+  case(LINEARPROBED):
+    for (i=0; i < (numPkt*2)/numWorkers; i++) {
+      for (j=0; j < numWorkers; j++) {
+	pkt = getRandomPacket(genSource);
+	pkt->key = (i*(numPkt*2)/numWorkers)+j;
+	add_linearProbed(htable, pkt->key, pkt->body);
+	enqueue(queues[j], numPkt+1, pkt, i);
+      }
+    }
+    break;
+  case(AWESOME):
+    for (i=0; i < (numPkt*2)/numWorkers; i++) {
+      for (j=0; j < numWorkers; j++) {
+	pkt = getRandomPacket(genSource);
+	pkt->key = (i*(numPkt*2)/numWorkers)+j;
+	add_awesome(htable, pkt->key, pkt->body);
+	enqueue(queues[j], numPkt+1, pkt, i);
+      }
+    }
+    break; */
   }
   //print_locked(htable->locked);
   
@@ -375,43 +451,85 @@ int TESTremove(int tableType, int numPkt, int numWorkers)
 
 
 int TESTintegration(int tableType, int time, int numWorkers) {
-  parallelHashPacketTest(time, .25, .25, .5, 12, 1000, 4, numWorkers, tableType);
+  parallelHashPacketTest(time, .25, .25, .5, 12, 4000, 4, numWorkers, tableType);
   return 1;
+}
+
+void speedups(int time, int numWorkers) {
+  double serial = serialHashPacketTest(time, .25, .25, .5, 4, 4000, 4);
+  double parallel;
+
+  printf("Serial = %f\n", serial); 
+
+  parallel = parallelHashPacketTest(time, .25, .25, .5, 4, 4000, 4, numWorkers, 1);
+  printf("LOCKED Speedup (n = %i) = %f/%f = %f\n", numWorkers, parallel, serial, parallel/serial); 
+
+  parallel = parallelHashPacketTest(time, .25, .25, .5, 4, 4000, 4, numWorkers, 2);
+  printf("LOCKFREEC Speedup (n = %i) = %f/%f = %f\n", numWorkers, parallel, serial, parallel/serial);
+  /*parallel = parallelHashPacketTest(time, .25, .25, .5, 4, 4000, 4, numWorkers, 1);
+  printf("LOCKED Speedup (n = %i) = %li\n", numWorkers, parallel/serial);
+  parallel = parallelHashPacketTest(time, .25, .25, .5, 4, 4000, 4, numWorkers, 1);
+  printf("LOCKED Speedup (n = %i) = %li\n", numWorkers, parallel/serial);*/
 }
 
 
 int main()
 {
   //int trials = 1; 
-
+  /*
   printf("\nRunning Framework Tests\n");
   printf("---\n");
   res(TESTserial(), "SERIAL", "(n = 1)");
   res(TESTenqueue(12), "ENQUEUE", "(numPkt = 12)");
   res(TESTdequeue(12), "DEQUEUE", "(numPkt = 12)");
-  printf("---\n");
+  printf("---\n"); 
   printf("\nRunning Locked Table Tests\n");
   printf("---\n");
   res(TESTcreatetable(1, 1, 1), "CREATE", "(logSz = 1, n = 1)");
   res(TESTcreatetable(1, 16, 1), "CREATE", "(logSz = 16, n = 1)");
-  res(TESTcreatetable(1, 16, 16), "CREATE", "(logSz = 16, n = 16)"); 
+  res(TESTcreatetable(1, 16, 32), "CREATE", "(logSz = 16, n = 32)");  
   res(TESTadd(1, 1, 1), "ADD", "(pkts = 1, n = 1)"); 
   res(TESTadd(1, 16, 1), "ADD", "(pkts = 16, n = 1)");
   res(TESTadd(1, 16, 16), "ADD", "(pkts = 16, n = 16)"); 
-  res(TESTadd(1, 64, 16), "ADD", "(pkts = 64, n = 16)"); 
-  res(TESTcontains(1, 1, 1), "CONTAINS", "(pkts = 1, n = 1)");
+  res(TESTadd(1, 128, 32), "ADD", "(pkts = 64, n = 32)"); 
+  res(TESTcontains(1, 1, 1), "CONTAINS", "(pkts = 1, n = 1)"); 
   res(TESTcontains(1, 16, 1), "CONTAINS", "(pkts = 16, n = 1)");
   res(TESTcontains(1, 16, 16), "CONTAINS", "(pkts = 16, n = 16)");
-  res(TESTcontains(1, 64, 16), "CONTAINS", "(pkts = 16, n = 16)");
+  res(TESTcontains(1, 128, 32), "CONTAINS", "(pkts = 128, n = 32)");
   res(TESTremove(1, 1, 1), "REMOVE", "(pkts = 1, n = 1)");
   res(TESTremove(1, 16, 1), "REMOVE", "(pkts = 16, n = 1)");
   res(TESTremove(1, 16, 16), "REMOVE", "(pkts = 16, n = 16)");
-  res(TESTremove(1, 64, 16), "REMOVE", "(pkts = 64, n = 16)");
-  res(TESTintegration(1, 1000, 1), "INTEGRATION", "(time = 1000, n = 1)");
-  res(TESTintegration(1, 1000, 2), "INTEGRATION", "(time = 1000, n = 2)");
-  res(TESTintegration(1, 1000, 4), "INTEGRATION", "(time = 1000, n = 4)");
-  res(TESTintegration(1, 1000, 16), "INTEGRATION", "(time = 1000, n = 16)");
- 
-  printf("---\n");
+  res(TESTremove(1, 128, 32), "REMOVE", "(pkts = 64, n = 32)"); 
+  res(TESTintegration(1, 2000, 1), "INTEGRATION", "(time = 2000, n = 1)");
+  res(TESTintegration(1, 2000, 16), "INTEGRATION", "(time = 2000, n = 16)"); 
+  res(TESTintegration(1, 2000, 32), "INTEGRATION", "(time = 2000, n = 32)"); 
+  printf("---\n"); 
+  printf("\nRunning Lock Free Contains Table Tests\n");
+  printf("---\n"); 
+  res(TESTcreatetable(2, 1, 1), "CREATE", "(logSz = 1, n = 1)");
+  res(TESTcreatetable(2, 16, 1), "CREATE", "(logSz = 16, n = 1)");
+  res(TESTcreatetable(2, 16, 32), "CREATE", "(logSz = 16, n = 32)");  
+  res(TESTadd(2, 1, 1), "ADD", "(pkts = 1, n = 1)"); 
+  res(TESTadd(2, 16, 1), "ADD", "(pkts = 16, n = 1)");
+  res(TESTadd(2, 16, 16), "ADD", "(pkts = 16, n = 16)"); 
+  res(TESTadd(2, 128, 32), "ADD", "(pkts = 64, n = 32)"); 
+  res(TESTcontains(2, 1, 1), "CONTAINS", "(pkts = 1, n = 1)"); 
+  res(TESTcontains(2, 16, 1), "CONTAINS", "(pkts = 16, n = 1)");
+  res(TESTcontains(2, 16, 16), "CONTAINS", "(pkts = 16, n = 16)");
+  res(TESTcontains(2, 128, 32), "CONTAINS", "(pkts = 128, n = 32)");
+  res(TESTremove(2, 1, 1), "REMOVE", "(pkts = 1, n = 1)");
+  res(TESTremove(2, 16, 1), "REMOVE", "(pkts = 16, n = 1)");
+  res(TESTremove(2, 16, 16), "REMOVE", "(pkts = 16, n = 16)");
+  res(TESTremove(2, 128, 32), "REMOVE", "(pkts = 64, n = 32)"); 
+  res(TESTintegration(2, 2000, 1), "INTEGRATION", "(time = 2000, n = 1)");
+  res(TESTintegration(2, 2000, 16), "INTEGRATION", "(time = 2000, n = 16)"); 
+  res(TESTintegration(2, 2000, 32), "INTEGRATION", "(time = 2000, n = 32)"); 
+  printf("---\n"); */
+
+  speedups(2000, 1);
+  speedups(2000, 2);
+  speedups(2000, 4);
+  speedups(2000, 8);
+  speedups(2000, 16);
   return 0;
 }
