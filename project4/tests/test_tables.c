@@ -510,8 +510,6 @@ void speedups(int time, int n, int testType) {
 
 int main()
 {
-  //int trials = 1; 
- 
   printf("\nRunning Framework Tests\n");
   printf("---\n");
   res(TESTserial(), "SERIAL", "(n = 1)");
@@ -559,7 +557,7 @@ int main()
   res(TESTintegration(2, 2000, 1), "INTEGRATION", "(time = 2000, n = 1)");
   res(TESTintegration(2, 2000, 16), "INTEGRATION", "(time = 2000, n = 16)"); 
   res(TESTintegration(2, 2000, 32), "INTEGRATION", "(time = 2000, n = 32)"); 
-  printf("---\n");
+  printf("---\n"); 
   printf("\nRunning Linear Probed Table Tests\n");
   printf("---\n"); 
   res(TESTcreatetable(3, 1, 1), "CREATE", "(logSz = 1, n = 1)");
@@ -584,8 +582,8 @@ int main()
 
   //speedups(2000, 4, o_reads);
   //speedups(2000, 4, o_writes);
-  //speedups(2000, 8, s_reads);
-  //speedups(2000, 8, s_writes);
+  speedups(1000, 8, s_reads);
+  speedups(1000, 8, s_writes);
   //speedups(2000, 16, s_reads);
   //speedups(2000, 16, s_writes);
 

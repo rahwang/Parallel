@@ -573,6 +573,7 @@ void add_linearProbe(hashtable_t * htable, int key, volatile Packet_t * x)
   int oldSize = table->logSize;
   int idx = key & table->mask;
   int numLocks = table->numLocks;
+  Pack_t *curr;
   int lidx;
   int steps = 0;
   //printf("begin call\n");
@@ -585,9 +586,10 @@ void add_linearProbe(hashtable_t * htable, int key, volatile Packet_t * x)
       pthread_mutex_unlock(locks+lidx);
       return add_linearProbe(htable, key, x);
     }
-    if (table->table[(idx+steps) % table->size].value == NULL) {
-      table->table[(idx+steps) % table->size].value = x;
-      table->table[(idx+steps) % table->size].key = key;
+    curr = table->table + ((idx+steps) % table->size);
+    if (curr->value == NULL) {
+      curr->value = x;
+      curr->key = key;
       pthread_mutex_unlock(locks+lidx);
       //printf("%i Successful add to %i\n", lidx, (idx+steps) % table->size);
       //printf("Pkts = %li, size = %i\n", countPkt(htable, 3), table->size);
@@ -610,6 +612,7 @@ bool remove_linearProbe(hashtable_t * htable, int key)
   int oldSize = table->logSize;
   int idx = key & table->mask;
   int numLocks = table->numLocks;
+  Pack_t *curr;
   int lidx;
   int steps = 0;
 
@@ -620,11 +623,12 @@ bool remove_linearProbe(hashtable_t * htable, int key)
       pthread_mutex_unlock(locks+lidx);
       return remove_linearProbe(htable, key);
     }
-    if ((table->table[(idx+steps) % table->size].value) &&
-	table->table[(idx+steps) % table->size].key == key) {
-      table->table[(idx+steps) % table->size].key = 0;
-      free((Packet_t *)table->table[(idx+steps) % table->size].value);
-      table->table[(idx+steps) % table->size].value = NULL;
+    curr = table->table + ((idx+steps) % table->size);
+    if ((curr->value) &&
+	(curr->key == key)) {
+      curr->key = 0;
+      free((Packet_t *)(curr->value));
+      curr->value = NULL;
       pthread_mutex_unlock(locks+lidx);
       return true;
     }
@@ -644,6 +648,7 @@ bool contains_linearProbe(hashtable_t * htable, int key)
   int oldSize = table->logSize;
   int idx = key & table->mask;
   int numLocks = table->numLocks;
+  Pack_t *curr;
   int lidx;
   int steps = 0;
 
@@ -655,8 +660,9 @@ bool contains_linearProbe(hashtable_t * htable, int key)
     else {
       pthread_mutex_lock(locks+lidx);
     }
-    if ((table->table[(idx+steps) % table->size].value) &&
-	table->table[(idx+steps) % table->size].key == key) {
+    curr = table->table + ((idx+steps) % table->size);
+    if ((curr->value) &&
+	(curr->key == key)) {
       pthread_mutex_unlock(locks+lidx);
       return true;
     }

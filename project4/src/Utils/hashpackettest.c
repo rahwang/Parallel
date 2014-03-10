@@ -147,6 +147,14 @@ double parallelHashPacketTest(int numMilliseconds,
     pthread_join(worker[i], NULL);
     totalCount += data[i].myCount;
   }
+
+  /*
+  double avg = totalCount/numWorkers;
+  printf("avg: %f \n", avg);
+
+  for (i = 0; i < numWorkers; i++) {
+    printf("Thread %i: %f \n", i, data[i].myCount - avg);
+    }*/
   
   // Stop timing
   stopTimer(&timer);
@@ -328,18 +336,18 @@ awesomeTable_t *initAwesome(int maxBucketSize, int initSize,
   return new;
 }
 */
+
 void dispatch(void *args) 
 {
   dispatch_t *data = (dispatch_t *)args;
   
   int i;
-  int it = 0;
+  int sum = 0;
   while(*(data->go)) {
     for (i = 0; i < data->n; i++) {
       volatile HashPacket_t *pkt = getRandomPacket(data->source);
-      data->count += enqueue((data->queues)[i], 12, pkt, data->count);
+      sum += enqueue((data->queues)[i], 12, pkt, sum);
     }
-    it++;
   }
+  data->count = sum;
 }
-
