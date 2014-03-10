@@ -5,6 +5,11 @@
 #define NORM "\033[0m"
 #define RED "\033[0;31m"
 
+#define o_reads 1
+#define o_writes 2
+#define s_reads 3
+#define s_writes 4
+
 HashPacketGenerator_t * genSource;
 
 
@@ -101,61 +106,51 @@ int TESTdequeue(int n) {
 int TESTcreatetable(int tableType, int numPkt, int numWorkers) {
   hashtable_t *t = (hashtable_t *)malloc(sizeof(hashtable_t));
 
-  switch(tableType) {
-  case(LOCKED):
-    t->locked = createLockedTable(numPkt, 4, numWorkers);
-    break;
-  case(LOCKFREEC):
-    t->lockFreeC = createLockFreeCTable(numPkt, 4, numWorkers);
-    break; /*
-  case(LINEARPROBED):
-    t->lockFreeC = createLockFreeCTable(numPkt, 4, numWorkers);
-    break;
-  case(AWESOME):
-    t->lockFreeC = createLockFreeCTable(numPkt, 4, numWorkers);
-    break; */
-  }
-
   HashPacketGenerator_t * source = createHashPacketGenerator(.25, .25, 0.5, 1000);
-  int i = 0;
+  int size, i = 0;
   int sum = 0;
   volatile HashPacket_t *pkt;
 
-  int size;
   switch(tableType) {
   case(LOCKED):
+    t->locked = createLockedTable(numPkt, 12, numWorkers);
     for (i=0; i < numPkt; i++) {
       pkt = getAddPacket(source);
       add_locked(t, mangleKey((HashPacket_t *)pkt), pkt->body);
     }
-    for (i = 0; i < (t->locked->size); i++) {
+    size = t->locked->size;
+    for (i = 0; i < size; i++) {
       if ((t->locked->table)[i] != NULL) {
 	sum +=  (t->locked->table)[i]->size;
       }
     }
-    size = t->locked->size;
     break;
   case(LOCKFREEC):
+    t->lockFreeC = createLockFreeCTable(numPkt, 12, numWorkers);
     for (i=0; i < numPkt; i++) {
       pkt = getAddPacket(source);
       add_lockFreeC(t, mangleKey((HashPacket_t *)pkt), pkt->body);
     }
-    for (i = 0; i < (t->lockFreeC->size); i++) {
+    size = t->lockFreeC->size;
+    for (i = 0; i < size; i++) {
       if ((t->lockFreeC->table)[i] != NULL) {
 	sum +=  (t->lockFreeC->table)[i]->size;
       }
     }
-    size = t->lockFreeC->size;
-    break; /*
+    break; 
   case(LINEARPROBED):
-    for (i = 0; i < (t->linearProbe->size); i++) {
-      if ((t->linearProbe->table)[i] != NULL) {
-	sum +=  (t->linearProbe->table)[i]->size;
-      }
+    t->linearProbe = createLinearProbeTable(numPkt, 12, numWorkers);
+    for (i=0; i < numPkt; i++) {
+      pkt = getAddPacket(source);
+      add_linearProbe(t, mangleKey((HashPacket_t *)pkt), pkt->body);
     }
     size = t->linearProbe->size;
-    break;
+    for (i = 0; i < size; i++) {
+      sum += ((t->linearProbe->table)[i].value != NULL);
+    }
+    break;/*
   case(AWESOME):
+    t->awesome = createAwesomeTable(numPkt, 12, numWorkers);
     for (i = 0; i < (t->awesome->size); i++) {
       if ((t->awesome->table)[i] != NULL) {
 	sum +=  (t->awesome->table)[i]->size;
@@ -214,7 +209,7 @@ int TESTadd(int tableType, int numPkt, int numWorkers)
   // Initialize Table + worker data
   pthread_t worker[numWorkers];
   ParallelPacketWorker_t data[numWorkers];
-  hashtable_t *htable = initTable(4, 0, data, genSource, numWorkers, NULL, queues, fingerprints, tableType);
+  hashtable_t *htable = initTable(12, 0, data, genSource, numWorkers, NULL, queues, fingerprints, tableType);
   
   for (i = 0 ; i < numWorkers; i++) {
     data[i].myCount = numPkt/numWorkers;
@@ -236,9 +231,9 @@ int TESTadd(int tableType, int numPkt, int numWorkers)
   int res = (numPkt == countPkt(htable, tableType));
   if (!res) {
     //print_locked(htable->locked);
-    printf("size %i == packets %i ?\n", countPkt(htable, tableType), numPkt);
+    printf("size %li == packets %i ?\n", countPkt(htable, tableType), numPkt);
   }
-  //print_locked(htable->locked);
+  //print_linearProbe(htable->linearProbe);
   free_htable(htable, tableType);
   return res;
 }
@@ -281,7 +276,7 @@ int TESTcontains(int tableType, int numPkt, int numWorkers)
   // Initialize Table + worker data
   pthread_t worker[numWorkers];
   ParallelPacketWorker_t data[numWorkers];
-  hashtable_t *htable = initTable(4, 0, data, genSource, numWorkers, NULL, queues, fingerprints, tableType);
+  hashtable_t *htable = initTable(12, 0, data, genSource, numWorkers, NULL, queues, fingerprints, tableType);
 
   for (i = 0 ; i < numWorkers; i++) {
     data[i].myCount = numPkt;
@@ -305,10 +300,24 @@ int TESTcontains(int tableType, int numPkt, int numWorkers)
       enqueue(queues[0], numPkt+1, pkt, i);
     }
     break;
+  case(LINEARPROBED):
+    for (i=0; i < numPkt; i++) {
+      pkt = getRandomPacket(genSource);
+      add_linearProbe(htable, i, pkt->body);
+      enqueue(queues[0], numPkt+1, pkt, i);
+    }
+    break;/*
+  case(AWESOME):
+    for (i=0; i < numPkt; i++) {
+      pkt = getRandomPacket(genSource);
+      add_awesome(htable, i, pkt->body);
+      enqueue(queues[0], numPkt+1, pkt, i);
+    }
+    break;*/
   }
-
+  
   //print_lockFreeC(htable->lockFreeC);
-
+  
   // Spawn Workers
   for (i = 0; i <numWorkers; i++) {
     if ((rc = pthread_create(worker+i, NULL, (void *) &containsWorker, (void *) (data+i)))) {
@@ -321,8 +330,9 @@ int TESTcontains(int tableType, int numPkt, int numWorkers)
   for (i = 0; i < numWorkers; i++) {
     pthread_join(worker[i], NULL);
   }   
-
+  
   int res = 0;
+  // -1 indicates failure. Check all threads
   for (i = 0; i < numWorkers; i++) {
     res += (data[i].myCount == -1);
     //printf("COUNT = %i\n", data[i].myCount);
@@ -345,7 +355,7 @@ void removeWorker(ParallelPacketWorker_t *data) {
     pkt = getPacket(queues, data->tid);
     if (!(*removef)(table, pkt->key)) {
       data->myCount = -1;
-      break;
+      return;
     } 
     (data->myCount)--;
   }
@@ -354,7 +364,7 @@ void removeWorker(ParallelPacketWorker_t *data) {
 
 int TESTremove(int tableType, int numPkt, int numWorkers) 
 {
-  int i, j, rc;  
+  int i, rc;  
   volatile HashPacket_t *pkt;
   if (numPkt % numWorkers) {
     fprintf(stderr,"ERROR: pkts not divisible by workers\n");
@@ -378,47 +388,38 @@ int TESTremove(int tableType, int numPkt, int numWorkers)
 
   switch(tableType) {
   case(LOCKED):
-    for (i=0; i < (numPkt*2)/numWorkers; i++) {
-      for (j=0; j < numWorkers; j++) {
-	pkt = getRandomPacket(genSource);
-	pkt->key = (i*(numPkt*2)/numWorkers)+j;
-	add_locked(htable, pkt->key, pkt->body);
-	enqueue(queues[j], numPkt+1, pkt, i);
-      }
+    for (i=0; i < (numPkt*2); i++) {
+      pkt = getRandomPacket(genSource);
+      pkt->key = i;
+      add_locked(htable, pkt->key, pkt->body);
+      enqueue(queues[i % numWorkers], numPkt+1, pkt, i);
     }
     break;
   case(LOCKFREEC):
-    for (i=0; i < (numPkt*2)/numWorkers; i++) {
-      for (j=0; j < numWorkers; j++) {
-	pkt = getRandomPacket(genSource);
-	pkt->key = (i*(numPkt*2)/numWorkers)+j;
-	add_lockFreeC(htable, pkt->key, pkt->body);
-	enqueue(queues[j], numPkt+1, pkt, i);
-      }
+    for (i=0; i < (numPkt*2); i++) {
+      pkt = getRandomPacket(genSource);
+      pkt->key = i;
+      add_lockFreeC(htable, pkt->key, pkt->body);
+      enqueue(queues[i % numWorkers], numPkt+1, pkt, i);
+    }
+    break; 
+  case(LINEARPROBED):
+    for (i=0; i < (numPkt*2); i++) {
+      pkt = getRandomPacket(genSource);
+      pkt->key = i;
+      add_linearProbe(htable, pkt->key, pkt->body);
+      enqueue(queues[i % numWorkers], numPkt+1, pkt, i);
     }
     break; /*
-  case(LINEARPROBED):
-    for (i=0; i < (numPkt*2)/numWorkers; i++) {
-      for (j=0; j < numWorkers; j++) {
+	     case(AWESOME):
+    for (i=0; i < (numPkt*2); i++) {
 	pkt = getRandomPacket(genSource);
-	pkt->key = (i*(numPkt*2)/numWorkers)+j;
-	add_linearProbed(htable, pkt->key, pkt->body);
-	enqueue(queues[j], numPkt+1, pkt, i);
-      }
-    }
-    break;
-  case(AWESOME):
-    for (i=0; i < (numPkt*2)/numWorkers; i++) {
-      for (j=0; j < numWorkers; j++) {
-	pkt = getRandomPacket(genSource);
-	pkt->key = (i*(numPkt*2)/numWorkers)+j;
+	pkt->key = i;
 	add_awesome(htable, pkt->key, pkt->body);
-	enqueue(queues[j], numPkt+1, pkt, i);
-      }
+	enqueue(queues[i % numWorkers], numPkt+1, pkt, i);
     }
     break; */
   }
-  //print_locked(htable->locked);
   
   for (i = 0 ; i < numWorkers; i++) {
     data[i].myCount = numPkt/numWorkers;
@@ -455,28 +456,62 @@ int TESTintegration(int tableType, int time, int numWorkers) {
   return 1;
 }
 
-void speedups(int time, int numWorkers) {
-  double serial = serialHashPacketTest(time, .25, .25, .5, 4, 4000, 4);
+void speedups(int time, int n, int testType) {
+  float adds = 0.09;
+  float rems = 0.01;
+  float hit = 0.5;
+  float s = 16;
+  int b = 12;
+  char *type;
+
+  switch(testType) {
+  case(o_reads):
+    adds = 0.09;
+    rems = 0.01;
+    hit = 0.9;
+    type = "reads";
+    break;
+  case(o_writes):
+    adds = 0.45;
+    rems = 0.05;
+    hit = 0.9;
+    type = "writes";
+    break;
+  case(s_reads):
+    adds = 0.09;
+    rems = 0.01;
+    hit = 0.75;
+    type = "reads";
+    break;
+  case(s_writes):
+    adds = 0.45;
+    rems = 0.05;
+    hit = 0.75;
+    type = "writes";
+    break;
+  }
+
+  double serial = serialHashPacketTest(time, adds, rems, hit, b, 4000, s);
   double parallel;
 
-  printf("Serial = %f\n", serial); 
+  printf("\n~~~~ Speedups (n = %i, type = %s) ~~~~ \n\n", n, type); 
+  printf("Serial packets = %15f\n\n", serial); 
 
-  parallel = parallelHashPacketTest(time, .25, .25, .5, 4, 4000, 4, numWorkers, 1);
-  printf("LOCKED Speedup (n = %i) = %f/%f = %f\n", numWorkers, parallel, serial, parallel/serial); 
-
-  parallel = parallelHashPacketTest(time, .25, .25, .5, 4, 4000, 4, numWorkers, 2);
-  printf("LOCKFREEC Speedup (n = %i) = %f/%f = %f\n", numWorkers, parallel, serial, parallel/serial);
-  /*parallel = parallelHashPacketTest(time, .25, .25, .5, 4, 4000, 4, numWorkers, 1);
-  printf("LOCKED Speedup (n = %i) = %li\n", numWorkers, parallel/serial);
-  parallel = parallelHashPacketTest(time, .25, .25, .5, 4, 4000, 4, numWorkers, 1);
-  printf("LOCKED Speedup (n = %i) = %li\n", numWorkers, parallel/serial);*/
+  parallel = parallelHashPacketTest(time, adds, rems, hit, b, 4000, s, n, 1);
+  printf("LOCKED = %15f\n", parallel/serial); 
+  parallel = parallelHashPacketTest(time, adds, rems, hit, b, 4000, s, n, 2);
+  printf("LOCKFC = %15f\n", parallel/serial);
+  parallel = parallelHashPacketTest(time, adds, rems, hit, b, 4000, s, n, 3);
+  printf("LINEAR = %15f\n", parallel/serial); 
+  // parallel = parallelHashPacketTest(time, .25, .25, .5, 4, 4000, 4, n, 1);
+  //printf("LOCKED Speedup (n = %i) = %li\n", n, parallel/serial);*/
 }
 
 
 int main()
 {
   //int trials = 1; 
-  /*
+ 
   printf("\nRunning Framework Tests\n");
   printf("---\n");
   res(TESTserial(), "SERIAL", "(n = 1)");
@@ -524,12 +559,36 @@ int main()
   res(TESTintegration(2, 2000, 1), "INTEGRATION", "(time = 2000, n = 1)");
   res(TESTintegration(2, 2000, 16), "INTEGRATION", "(time = 2000, n = 16)"); 
   res(TESTintegration(2, 2000, 32), "INTEGRATION", "(time = 2000, n = 32)"); 
-  printf("---\n"); */
+  printf("---\n");
+  printf("\nRunning Linear Probed Table Tests\n");
+  printf("---\n"); 
+  res(TESTcreatetable(3, 1, 1), "CREATE", "(logSz = 1, n = 1)");
+  res(TESTcreatetable(3, 16, 1), "CREATE", "(logSz = 4, n = 1)");
+  res(TESTcreatetable(3, 16, 32), "CREATE", "(logSz = 8, n = 32)"); 
+  res(TESTadd(3, 1, 1), "ADD", "(pkts = 1, n = 1)"); 
+  res(TESTadd(3, 16, 1), "ADD", "(pkts = 16, n = 1)");
+  res(TESTadd(3, 16, 16), "ADD", "(pkts = 16, n = 16)"); 
+  res(TESTadd(3, 128, 32), "ADD", "(pkts = 128, n = 32)"); 
+  res(TESTcontains(3, 1, 1), "CONTAINS", "(pkts = 1, n = 1)"); 
+  res(TESTcontains(3, 16, 1), "CONTAINS", "(pkts = 16, n = 1)");
+  res(TESTcontains(3, 16, 16), "CONTAINS", "(pkts = 16, n = 16)");
+  res(TESTcontains(3, 128, 32), "CONTAINS", "(pkts = 128, n = 32)");
+  res(TESTremove(3, 1, 1), "REMOVE", "(pkts = 1, n = 1)");
+  res(TESTremove(3, 16, 1), "REMOVE", "(pkts = 16, n = 1)");
+  res(TESTremove(3, 16, 16), "REMOVE", "(pkts = 16, n = 16)");
+  res(TESTremove(3, 128, 32), "REMOVE", "(pkts = 128, n = 32)"); 
+  res(TESTintegration(3, 2000, 1), "INTEGRATION", "(time = 2000, n = 1)");
+  res(TESTintegration(3, 2000, 16), "INTEGRATION", "(time = 2000, n = 16)"); 
+  res(TESTintegration(3, 2000, 32), "INTEGRATION", "(time = 2000, n = 32)"); 
+  printf("---\n");
 
-  speedups(2000, 1);
-  speedups(2000, 2);
-  speedups(2000, 4);
-  speedups(2000, 8);
-  speedups(2000, 16);
+  //speedups(2000, 4, o_reads);
+  //speedups(2000, 4, o_writes);
+  //speedups(2000, 8, s_reads);
+  //speedups(2000, 8, s_writes);
+  //speedups(2000, 16, s_reads);
+  //speedups(2000, 16, s_writes);
+
+
   return 0;
 }

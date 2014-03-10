@@ -151,7 +151,7 @@ double parallelHashPacketTest(int numMilliseconds,
   // Stop timing
   stopTimer(&timer);
 
-  
+  //printf("tree size: %li \n", countPkt(htable, tableType));
   
   free_htable(htable, tableType);
   // report the total number of packets processed and total time
@@ -178,10 +178,10 @@ hashtable_t *initTable(int maxBucketSize, int initSize,
     break;
   case(LOCKFREEC):
     htable->lockFreeC = initLockFreeC(maxBucketSize, initSize, data, source, numWorkers, go, queues, fingerprints);
-    break;/*
+    break;
   case(LINEARPROBED):
     htable->linearProbe = initLinearProbe(maxBucketSize, initSize, data, source, numWorkers, go, queues, fingerprints);
-    break;
+    break; /*
   case(AWESOME):
     htable->awesome = initAwesome(maxBucketSize, initSize, data, source, numWorkers, go, queues, fingerprints);
     break;*/
@@ -257,28 +257,28 @@ lockFreeCTable_t *initLockFreeC(int maxBucketSize, int initSize,
   }
   return htable->lockFreeC;
 }
-/*
-linearProbeTable_t *initLinearProbe(int maxBucketSize, int initSize, 
-				    HashPacketGenerator_t *source, 
-				    ParallelPacketWorker_t *data, 
-				    int numWorkers,
-				    PaddedPrimBool_NonVolatile_t * go,
-				    HashList_t **queues,
-				    long *fingerprints) 
 
+linearProbeTable_t *initLinearProbe(int maxStep, int initSize, 
+			  ParallelPacketWorker_t *data, 
+			  HashPacketGenerator_t * source,
+			  int numWorkers,
+			  volatile int *go,
+			  HashList_t **queues,
+			  long *fingerprints) 
 {
   int base = (initSize == 0) ? 4 : initSize*2;
-  linearProbeTable_t *new = createLinearProbeTable(base, maxBucketSize);
+  hashtable_t *htable = (hashtable_t *)malloc(sizeof(hashtable_t));
+  htable->linearProbe = createLinearProbeTable(base, maxStep, numWorkers);
   HashPacket_t *pkt;
 
   int i;
   for (i = 0; i < initSize; i++) {
     pkt = getAddPacket(source);
-    addNoCheck_linearProbe(new, pkt->key, pkt->body);
+    add_linearProbe(htable, pkt->key, pkt->body);
   }
   for (i = 0; i < numWorkers; i++) {
     data[i].go = go;
-    data[i].totalPackets = 0;
+    //data[i].totalPackets = 0;
     data[i].queues = queues;
     data[i].tid = i;
     data[i].n = numWorkers;
@@ -289,10 +289,10 @@ linearProbeTable_t *initLinearProbe(int maxBucketSize, int initSize,
     data[i].myCount = 0;
     data[i].table = htable;
   }
-
-  return new;
+  return htable->linearProbe;
 }
 
+/*
 awesomeTable_t *initAwesome(int maxBucketSize, int initSize, 
 			    HashPacketGenerator_t *source, 
 			    ParallelPacketWorker_t *data, 
@@ -343,40 +343,3 @@ void dispatch(void *args)
   }
 }
 
-
-int countPkt(hashtable_t *htable, int type) {
-  int i, size;
-  int sum = 0;
-  SerialList_t *bucket;
-  switch(type) {
-  case (LOCKED):
-    size = htable->locked->size;
-    for (i = 0; i < size; i++) {
-      bucket = htable->locked->table[i];
-      sum += list_len(bucket);
-    }
-    break;
-  case (LOCKFREEC):
-    size = htable->lockFreeC->size;
-    for (i = 0; i < size; i++) {
-      bucket = htable->locked->table[i];
-      sum += list_len(bucket);
-    }
-    break;
-  case (LINEARPROBED):
-    size = htable->linearProbe->size;
-    for (i = 0; i < size; i++) {
-      bucket = htable->locked->table[i];
-      sum += list_len(bucket);
-    }
-    break;
-  case (AWESOME):
-    size = htable->awesome->size;
-    for (i = 0; i < size; i++) {
-      bucket = htable->locked->table[i];
-      sum += list_len(bucket);
-    }
-    break;
-  }
-  return sum;
-}

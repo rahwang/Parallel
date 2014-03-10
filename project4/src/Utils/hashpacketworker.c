@@ -37,6 +37,11 @@ void parallelWorker(ParallelPacketWorker_t * data){
   bool (*removef)(hashtable_t *, int) = data->removef;
   bool (*containsf)(hashtable_t *, int) = data->containsf;
 
+  //long adds = 0;
+  //long rems = 0;
+  //long contains = 0;
+  //long successful = 0;
+
   //printf("STARTING %i\n", data->tid);  
   while(*(data->go)) {
     if ((pkt = getPacket(queues, i))) {
@@ -50,13 +55,15 @@ void parallelWorker(ParallelPacketWorker_t * data){
 	(*removef)(table, mangleKey((HashPacket_t *)pkt));
 	break;
       case Contains:
+	//contains++;
+	//successful += (*containsf)(table, mangleKey((HashPacket_t *)pkt));
 	(*containsf)(table, mangleKey((HashPacket_t *)pkt));
 	break;
       }
     data->myCount++;
     }
   }
-  //printf("DONE %i\n", data->tid);
+  //printf("%i Contains %f\n", data->tid, successful/(float)contains);
 }
 
 

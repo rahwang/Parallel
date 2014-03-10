@@ -23,10 +23,10 @@
 #define AWESOME 4
 
 typedef struct serialTable_t {
-  int logSize;
-  int mask;
-  int maxBucketSize;
-  int size;
+  volatile int logSize;
+  volatile int mask;
+  volatile int maxBucketSize;
+  volatile int size;
   SerialList_t ** table;
 }serialTable_t;
 
@@ -52,11 +52,21 @@ typedef struct lockFreeCTable_t {
   pthread_mutex_t *locks;
 } lockFreeCTable_t;
 
+typedef struct Pack_t {
+  int key;
+  volatile Packet_t * value;
+} Pack_t;
+
 typedef struct linearProbeTable_t {
-  int logSize;
-  int mask;
-  int maxBucketSize;
-  int size;
+  volatile int logSize;
+  volatile int mask;
+  volatile int maxStep;
+  volatile int owned;
+  volatile int *entries;
+  volatile int size;
+  Pack_t *table;
+  volatile int numLocks;
+  pthread_mutex_t *locks;
 } linearProbeTable_t;
 
 typedef struct awesomeTable_t {
@@ -104,16 +114,15 @@ bool contains_lockFreeC(hashtable_t * htable,int key);
 void resize_lockFreeC(lockFreeCTable_t * htable);
 void print_lockFreeC(lockFreeCTable_t * htable);
 
-/* For serial hash table
-linearProbeTable_t * createLinearProbeTable(int logSize, int maxBucketSize);
+/* For lock free C hash table */
+linearProbeTable_t * createLinearProbeTable(int logSize, int maxStep, int n);
 void resizeIfNecessary_linearProbe(linearProbeTable_t * htable,int key);
-void addNoCheck_linearProbe(linearProbeTable_t * htable,int key, volatile Packet_t * x);
 void add_linearProbe(hashtable_t * htable,int key, volatile Packet_t * x);
 bool remove_linearProbe(hashtable_t * htable,int key);
 bool contains_linearProbe(hashtable_t * htable,int key);
 void resize_linearProbe(linearProbeTable_t * htable);
 void print_linearProbe(linearProbeTable_t * htable);
-*/
+
 /* For serial hash table
 awesomeTable_t * createAwesomeTable(int logSize, int maxBucketSize);
 void resizeIfNecessary_awesome(awesomeTable_t * htable,int key);
@@ -126,5 +135,6 @@ void print_awesome(awesomeTable_t * htable);
 */
 
 void free_htable(hashtable_t *htable, int type);
+long countPkt(hashtable_t *htable, int type);
 
 #endif /* HASHTABLE_H_ */

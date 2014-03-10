@@ -80,6 +80,5 @@ hashtable_t *initTable(int maxBucketSize, int initSize,
 		       long *fingerprints,
 		       int tableType);
 void dispatch(void *args);
-int countPkt(hashtable_t *htable, int type);
 
 #endif /* HASHPACKETTEST_H_ */

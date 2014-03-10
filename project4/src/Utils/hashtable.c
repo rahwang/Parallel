@@ -4,6 +4,8 @@
 
 #define POLICY .75
 
+/* SERIAL TABLE FUNCTIONS */
+
 serialTable_t * createSerialTable(int logSize, int maxBucketSize)
 {
   serialTable_t * htable = (serialTable_t *)malloc(sizeof(serialTable_t));
@@ -107,6 +109,9 @@ void print_serial(serialTable_t * htable){
 
 
 
+
+/* LOCKED TABLE FUNCTIONS */
+
 lockedTable_t * createLockedTable(int logSize, int maxBucketSize, int n)
 {
   int i;
@@ -193,7 +198,7 @@ bool remove_locked(hashtable_t * htable,int key)
 {
   lockedTable_t *table = htable->locked;
   pthread_rwlock_t *locks = table->rw_locks;
-  resizeIfNecessary_locked(table, key);
+  //resizeIfNecessary_locked(table, key);
 
   bool res;
   int oldSize = table->logSize;
@@ -321,6 +326,10 @@ void free_htable(hashtable_t *htable, int type) {
 }
 
 
+
+
+/* LOCK FREE C TABLE FUNCTIONS */
+
 lockFreeCTable_t * createLockFreeCTable(int logSize, int maxBucketSize, int n)
 {
   int i;
@@ -407,7 +416,7 @@ bool remove_lockFreeC(hashtable_t * htable,int key)
 {
   lockFreeCTable_t *table = htable->lockFreeC;
   pthread_mutex_t *locks = table->locks;
-  resizeIfNecessary_lockFreeC(table, key);
+  //resizeIfNecessary_lockFreeC(table, key);
 
   bool res;
   int oldSize = table->logSize;
@@ -481,12 +490,12 @@ void resize_lockFreeC(lockFreeCTable_t * table)
 	    }
 	}
     }
-  SerialList_t ** temp = table->table;
+  //SerialList_t ** temp = table->table;
   table->logSize++;
   table->size = table->size * 2;
   table->mask = (1 << table->logSize) - 1;
   table->table = newTable;
-  free(temp);
+  //free(temp);
 }
 
 void print_lockFreeC(lockFreeCTable_t * htable)
@@ -500,4 +509,258 @@ void print_lockFreeC(lockFreeCTable_t * htable)
     printf("\n");
   }
   printf("~~~ End Table ~~~\n\n");
+}
+
+
+
+
+/* LINEAR PROBE TABLE FUNCTIONS */
+
+linearProbeTable_t * createLinearProbeTable(int logSize, int maxStep, int n)
+{
+  int i;
+  linearProbeTable_t * htable = (linearProbeTable_t *)malloc(sizeof(linearProbeTable_t));
+  htable->entries = (int *)malloc(sizeof(int));
+  *(htable->entries) = 0;
+  htable->logSize = logSize;
+  htable->maxStep = maxStep;
+  htable->mask = (1 << logSize) - 1;
+  int tableSize = (1 << logSize);
+  htable->size = tableSize;
+  htable->table = (Pack_t *)malloc(sizeof(Pack_t)* tableSize);
+  for(i =0; i < tableSize; i++) {
+    htable->table[i].value = NULL;
+  }
+  htable->numLocks = n;
+  pthread_mutex_t *locks = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t)*n);
+  for (i = 0; i < n; i++) {
+    pthread_mutex_init(locks+i, NULL);
+  }
+  htable->locks = locks;
+  htable->owned = 0;
+  return htable;
+}
+
+
+void resizeIfNecessary_linearProbe(linearProbeTable_t * table, volatile int key){	
+  int i;
+  int oldsize = table->logSize;
+
+  if (__sync_lock_test_and_set(&table->owned, 1)) {
+    return;
+  }
+  else {
+    for (i = 0; i < (table->numLocks); i++) {
+      pthread_mutex_lock((table->locks)+i);
+      //printf("Lock %i\n", i);
+    }
+    if (oldsize == table->logSize) {
+      resize_linearProbe(table);
+    }
+    for (i = 0; i < (table->numLocks); i++) {
+      pthread_mutex_unlock((table->locks)+i);
+      //printf("Unlock %i\n", i);
+    }
+    table->owned = 0;
+  }
+}
+
+
+void add_linearProbe(hashtable_t * htable, int key, volatile Packet_t * x)
+{
+  linearProbeTable_t *table = htable->linearProbe;
+  pthread_mutex_t *locks = table->locks;
+  int oldSize = table->logSize;
+  int idx = key & table->mask;
+  int numLocks = table->numLocks;
+  int lidx;
+  int steps = 0;
+  //printf("begin call\n");
+
+  while (steps < table->maxStep) {
+    lidx = ((idx+steps) % numLocks);
+    pthread_mutex_lock(locks+lidx);
+    //printf("lidx %d numlock %i\n", lidx, numLocks);
+    if ((table->owned) || (oldSize != table->logSize)) {
+      pthread_mutex_unlock(locks+lidx);
+      return add_linearProbe(htable, key, x);
+    }
+    if (table->table[(idx+steps) % table->size].value == NULL) {
+      table->table[(idx+steps) % table->size].value = x;
+      table->table[(idx+steps) % table->size].key = key;
+      pthread_mutex_unlock(locks+lidx);
+      //printf("%i Successful add to %i\n", lidx, (idx+steps) % table->size);
+      //printf("Pkts = %li, size = %i\n", countPkt(htable, 3), table->size);
+      return;
+    }
+    pthread_mutex_unlock(locks+lidx);
+    steps++;
+  }
+  resizeIfNecessary_linearProbe(table, key);
+  add_linearProbe(htable, key, x);
+}
+
+
+bool remove_linearProbe(hashtable_t * htable, int key)
+{
+  linearProbeTable_t *table = htable->linearProbe;
+  pthread_mutex_t *locks = table->locks;
+  //resizeIfNecessary_linearProbe(table, key);
+
+  int oldSize = table->logSize;
+  int idx = key & table->mask;
+  int numLocks = table->numLocks;
+  int lidx;
+  int steps = 0;
+
+  while (steps < table->maxStep) {
+    lidx = ((idx + steps) % numLocks);
+    pthread_mutex_lock(locks+lidx);
+    if ((table->owned) || (oldSize != table->logSize)) {
+      pthread_mutex_unlock(locks+lidx);
+      return remove_linearProbe(htable, key);
+    }
+    if ((table->table[(idx+steps) % table->size].value) &&
+	table->table[(idx+steps) % table->size].key == key) {
+      table->table[(idx+steps) % table->size].key = 0;
+      free((Packet_t *)table->table[(idx+steps) % table->size].value);
+      table->table[(idx+steps) % table->size].value = NULL;
+      pthread_mutex_unlock(locks+lidx);
+      return true;
+    }
+    pthread_mutex_unlock(locks+lidx);
+    steps++;
+  }
+  return false;
+}
+
+
+bool contains_linearProbe(hashtable_t * htable, int key) 
+{
+  linearProbeTable_t *table = htable->linearProbe;
+  pthread_mutex_t *locks = table->locks;
+  //resizeIfNecessary_linearProbe(table, key);
+
+  int oldSize = table->logSize;
+  int idx = key & table->mask;
+  int numLocks = table->numLocks;
+  int lidx;
+  int steps = 0;
+
+  while (steps < table->maxStep) {
+    lidx = ((idx + steps) % numLocks);
+    if ((table->owned) || (oldSize != table->logSize)) {
+      return contains_linearProbe(htable, key);
+    }
+    else {
+      pthread_mutex_lock(locks+lidx);
+    }
+    if ((table->table[(idx+steps) % table->size].value) &&
+	table->table[(idx+steps) % table->size].key == key) {
+      pthread_mutex_unlock(locks+lidx);
+      return true;
+    }
+    pthread_mutex_unlock(locks+lidx);
+    steps++;
+  }
+  return false;
+}
+
+
+void resize_linearProbe(linearProbeTable_t * table)
+{
+  int i, steps, idx;
+  table->logSize++;
+  table->mask = (1 << table->logSize) - 1;
+  int newTableSize = (1 << table->logSize);
+  Pack_t *newTable = (Pack_t *)malloc(sizeof(Pack_t)*newTableSize);
+  volatile Packet_t *pkt;
+  int key;
+  for(i = 0; i < newTableSize; i++) {
+    newTable[i].value = NULL;
+  }
+
+  //hashtable_t *tmp = (hashtable_t *)malloc(sizeof(hashtable_t));
+  //tmp->linearProbe = table;
+  //printf("IN Pkts = %li\n", countPkt(tmp, 3));
+  for(i = 0; i < table->size; i++ ) {
+    if ((pkt = table->table[i].value)) {
+      key = table->table[i].key;
+      steps = 0;
+      while(steps < table->maxStep) {
+	idx = ((key & table->mask)+steps) % newTableSize;
+	//printf("idx = %i\n", idx);
+	if (newTable[idx].value == NULL) {
+	  newTable[idx].value = pkt;
+	  newTable[idx].key = key;
+	  steps = 1000;
+	  break;
+	}
+	steps++;
+      }
+      if (steps != 1000) {
+	//printf("resize = %i\n", table->logSize);
+	return resize_linearProbe(table);
+      }
+    }
+  }
+
+
+  Pack_t *temp = table->table;
+  table->size = newTableSize;
+  table->table = newTable;
+  //printf("OUT Pkts = %li\n", countPkt(tmp, 3));
+  free(temp);
+}
+
+
+void print_linearProbe(linearProbeTable_t * htable)
+{
+  int i;
+  printf("\n~~~ Locked Table ~~~\nSize = %i\nLogSize = %i\n\n", htable->size, htable->logSize);
+  for(i = 0; i < htable->size; i++ ) {
+    printf("BUCKET %d ...",i);
+    if(htable->table[i].value != NULL) {
+      printf("KEY:%i\n", htable->table[i].key);
+    }
+    printf("\n");
+  }
+  printf("~~~ End Table ~~~\n\n");
+}
+
+long countPkt(hashtable_t *htable, int type) {
+  int i, size;
+  long sum = 0;
+  SerialList_t *bucket = NULL;
+
+  switch(type) {
+  case (LOCKED):
+    size = htable->locked->size;
+    for (i = 0; i < size; i++) {
+      bucket = htable->locked->table[i];
+      sum += list_len(bucket);
+    }
+    break;
+  case (LOCKFREEC):
+    size = htable->lockFreeC->size;
+    for (i = 0; i < size; i++) {
+      bucket = htable->locked->table[i];
+      sum += list_len(bucket);
+    }
+    break;
+  case (LINEARPROBED):
+    size = htable->linearProbe->size;
+    for (i = 0; i < size; i++) {
+      sum += (htable->linearProbe->table[i].value != NULL);
+    }
+    break;
+  case (AWESOME):
+    size = htable->awesome->size;
+    for (i = 0; i < size; i++) {
+      bucket = htable->locked->table[i];
+      sum += list_len(bucket);
+    }
+    break;
+  }
+  return sum;
 }

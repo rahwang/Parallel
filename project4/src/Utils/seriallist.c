@@ -73,7 +73,7 @@ bool remove_list(SerialList_t * list, int key){
 	Item_t * temp = __sync_lock_test_and_set(&curr->next, curr->next->next);
 	__sync_fetch_and_sub(&(list->size), 1);
 	free(temp);
-	return true;
+	return temp == temp;
       }
       else
 	curr = curr->next;
