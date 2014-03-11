@@ -69,11 +69,27 @@ typedef struct linearProbeTable_t {
   pthread_mutex_t *locks;
 } linearProbeTable_t;
 
+typedef struct node_t {
+  volatile Packet_t *val;
+  int key;
+  struct node_t *next;
+  int marked;
+} node_t;
+
+typedef struct window {
+  node_t *curr;
+  node_t *pred;
+} window;
+
+typedef struct bucketlist_t {
+  node_t *head;
+} bucketlist_t;
+
 typedef struct awesomeTable_t {
-  int logSize;
-  int mask;
-  int maxBucketSize;
-  int size;
+  volatile long setSize;
+  volatile long bucketSize;
+  volatile long maxSize;
+  bucketlist_t *buckets;
 } awesomeTable_t;
 
 typedef union hashtable_t {
@@ -123,18 +139,25 @@ bool contains_linearProbe(hashtable_t * htable,int key);
 void resize_linearProbe(linearProbeTable_t * htable);
 void print_linearProbe(linearProbeTable_t * htable);
 
-/* For serial hash table
-awesomeTable_t * createAwesomeTable(int logSize, int maxBucketSize);
-void resizeIfNecessary_awesome(awesomeTable_t * htable,int key);
-void addNoCheck_awesome(awesomeTable_t * htable,int key, volatile Packet_t * x);
-void add_awesome(hashtable_t * htable,int key, volatile Packet_t * x);
-bool remove_awesome(hashtable_t * htable,int key);
-bool contains_awesome(hashtable_t * htable,int key);
-void resize_awesome(awesomeTable_t * htable);
+/* For awesome hash table */
+int makeKey(int seed);
+int makeSentinelKey(int seed);
+bool add_bucketlist(bucketlist_t bucket, int key, volatile Packet_t *x); 
+bool remove_bucketlist(bucketlist_t bucket, int key); 
+bool contains_bucketlist(bucketlist_t bucket, int key);
+node_t *getSentinel(bucketlist_t bucket, int idx);
+bucketlist_t getBucket(awesomeTable_t *table, int idx); 
+void initBucket(awesomeTable_t *table, int idx);
+int getParent(awesomeTable_t *table, int idx); 
+awesomeTable_t *createAwesomeTable(int logSize); 
+void add_awesome(hashtable_t *htable, int key, volatile Packet_t *x);
+bool remove_awesome(hashtable_t *htable, int key);
+bool contains_awesome(hashtable_t *htable, int key);
 void print_awesome(awesomeTable_t * htable);
-*/
 
+void print_table(hashtable_t *htable, int type);
 void free_htable(hashtable_t *htable, int type);
 long countPkt(hashtable_t *htable, int type);
 
+char *binrep (unsigned int val);
 #endif /* HASHTABLE_H_ */

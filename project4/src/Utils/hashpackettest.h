@@ -74,8 +74,7 @@ linearProbeTable_t *initLinearProbe(int maxBucketSize, int initSize,
 				    HashList_t **queues,
 				    long *fingerprints);
 
-awesomeTable_t *initAwesome(int maxBucketSize, int initSize, 
-			    ParallelPacketWorker_t *data, 
+awesomeTable_t *initAwesome(int initSize, ParallelPacketWorker_t *data, 
 			    HashPacketGenerator_t * source,
 			    int numWorkers,
 			    volatile int *go,

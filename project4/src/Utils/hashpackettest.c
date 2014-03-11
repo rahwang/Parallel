@@ -288,10 +288,10 @@ hashtable_t *initTable(int maxBucketSize, int initSize,
     break;
   case(LINEARPROBED):
     htable->linearProbe = initLinearProbe(maxBucketSize, initSize, data, source, numWorkers, go, queues, fingerprints);
-    break; /*
+    break; 
   case(AWESOME):
-    htable->awesome = initAwesome(maxBucketSize, initSize, data, source, numWorkers, go, queues, fingerprints);
-    break;*/
+    htable->awesome = initAwesome(initSize, data, source, numWorkers, go, queues, fingerprints);
+    break;
   }
 
   return htable;
@@ -411,28 +411,30 @@ linearProbeTable_t *initLinearProbe(int maxStep, int initSize,
   return htable->linearProbe;
 }
 
-/*
-awesomeTable_t *initAwesome(int maxBucketSize, int initSize, 
-			    HashPacketGenerator_t *source, 
+awesomeTable_t *initAwesome(int initSize,
 			    ParallelPacketWorker_t *data, 
-			    int numWorkers,
-			    PaddedPrimBool_NonVolatile_t * go,
-			    HashList_t **queues,
-			    long *fingerprints) 
- 
+			  HashPacketGenerator_t * source,
+			  int numWorkers,
+			  volatile int *go,
+			  HashList_t **queues,
+			  long *fingerprints) 
 {
-  int base = (initSize == 0) ? 4 : initSize*2;
-  awesomeTable_t *new = createAwesomeTable(base, maxBucketSize);
+  hashtable_t *htable = (hashtable_t *)malloc(sizeof(hashtable_t));
+  htable->awesome = createAwesomeTable(30);
   HashPacket_t *pkt;
 
   int i;
   for (i = 0; i < initSize; i++) {
     pkt = getAddPacket(source);
-    addNoCheck_awesome(new, pkt->key, pkt->body);
+    add_awesome(htable, pkt->key, pkt->body);
   }
+
+  pthread_mutex_t *locks = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t)*numWorkers);
+
   for (i = 0; i < numWorkers; i++) {
+    pthread_mutex_init(locks+i, NULL);
+    data[i].locks = locks;
     data[i].go = go;
-    data[i].totalPackets = 0;
     data[i].queues = queues;
     data[i].tid = i;
     data[i].n = numWorkers;
@@ -443,10 +445,8 @@ awesomeTable_t *initAwesome(int maxBucketSize, int initSize,
     data[i].myCount = 0;
     data[i].table = htable;
   }
-  
-  return new;
+  return htable->awesome;
 }
-*/
 
 void dispatch(void *args) 
 {

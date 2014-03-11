@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#define POLICY .75
+#define THRESHOLD .5
 
 /* SERIAL TABLE FUNCTIONS */
 
@@ -639,7 +639,6 @@ bool remove_linearProbe(hashtable_t * htable, int key)
   return false;
 }
 
-
 bool contains_linearProbe(hashtable_t * htable, int key) 
 {
   linearProbeTable_t *table = htable->linearProbe;
@@ -712,7 +711,6 @@ void resize_linearProbe(linearProbeTable_t * table)
     }
   }
 
-
   Pack_t *temp = table->table;
   table->size = newTableSize;
   table->table = newTable;
@@ -735,9 +733,261 @@ void print_linearProbe(linearProbeTable_t * htable)
   printf("~~~ End Table ~~~\n\n");
 }
 
+
+
+
+/* AWESOME functions */
+
+node_t *newNode(int key) {
+  node_t *new = (node_t *)malloc(sizeof(node_t));
+  new->key = key;
+  new->next = NULL;
+  new->val = NULL;
+  new->marked = 0;
+  return new;
+}
+
+window newWindow(node_t *pred, node_t *curr) {
+  window *w = (window *)malloc(sizeof(window));
+  w->pred = pred;
+  w->curr = curr;
+  return *w;
+}
+
+window find(node_t *head, int key) {
+  node_t *pred = head;
+  node_t *curr = NULL;
+  node_t *succ = NULL;
+
+  curr = pred->next;
+  while(curr) {
+    succ = curr->next;
+    while(curr->marked) {
+      if(!(__sync_bool_compare_and_swap(&(pred->next), curr, succ))) {
+	return find(head, key);
+      }
+      curr = succ;
+      succ = curr->next;
+    }
+    if (curr->key >= key) {
+      //printf("find %i < %i < %i\n", pred->key, key, curr->key);
+      return newWindow(pred, curr);
+    }
+    pred = curr;
+    curr = succ;
+  }
+  return newWindow(pred, NULL);
+}
+
+  // 32-bit word to reverse bit order
+int reverse(int v) {
+  // swap odd and even bits
+  v = ((v >> 1) & 0x55555555) | ((v & 0x55555555) << 1);
+  // swap consecutive pairs
+  v = ((v >> 2) & 0x33333333) | ((v & 0x33333333) << 2);
+  // swap nibbles ... 
+  v = ((v >> 4) & 0x0F0F0F0F) | ((v & 0x0F0F0F0F) << 4);
+  // swap bytes
+  v = ((v >> 8) & 0x00FF00FF) | ((v & 0x00FF00FF) << 8);
+  // swap 2-byte long pairs
+  v = ( v >> 16             ) | ( v               << 16);
+  return v;
+}
+
+int makeKey(int seed) {
+  int HI_MASK = 0x00800000;
+  int MASK = 0x00FFFFFF;
+
+  int key = seed & MASK;
+  return reverse(key | HI_MASK);
+}
+
+int makeSentinelKey(int seed) {
+  return reverse(seed & 0x00FFFFFF);
+}
+
+bool add_bucketlist(bucketlist_t bucket, int key, volatile Packet_t *x) {
+  node_t *curr;
+  node_t *pred;
+  int nuKey = makeKey(key);
+  node_t *new = newNode(nuKey);
+
+  //printf("Adding, key = %i, val = %li\n", key, x->seed);
+  while(1) {
+    window w = find(bucket.head, nuKey);
+    pred = w.pred;
+    curr = w.curr;
+    if (curr && (curr->key == nuKey)) {
+      return false;
+    }
+    else {
+      new->next = curr;
+      new->val = x;
+      if (__sync_bool_compare_and_swap(&(pred->next), curr, new)) {
+	//int tmp = (new->next == NULL) ? 0 : new->next->key;
+	//printf("Adding %i < %i < %i\n", pred->key, new->key, tmp);
+	return true;
+      }
+    }
+  }
+}
+
+bool remove_bucketlist(bucketlist_t bucket, int key) {
+  node_t *curr, *pred, *succ;
+  int nuKey = makeKey(key);
+
+  while(1) {
+    window w = find(bucket.head, nuKey);
+    pred = w.pred;
+    curr = w.curr;
+    if (!curr || (curr->key != nuKey)) {
+      return false;
+    }
+    else {
+      succ = curr->next;
+      curr->marked = 1;
+      __sync_bool_compare_and_swap(&(pred->next), curr, succ);
+      return true;
+    }
+  }
+}
+
+bool contains_bucketlist(bucketlist_t bucket, int key) {
+  int nuKey = makeKey(key);
+  window w = find(bucket.head, nuKey);
+  //printf("key = %i\n", key);
+  return (w.curr) && ((w.curr->key == nuKey) && (!w.curr->marked));
+}
+
+node_t *getSentinel(bucketlist_t bucket, int idx) {
+  int key = makeSentinelKey(idx);
+  bool splice;
+  while(1) {
+    window w = find(bucket.head, key);
+    node_t *pred = w.pred;
+    node_t *curr = w.curr;
+    if (curr && (curr->key == key)) {
+      return curr;
+    }
+    else {
+      node_t *node = newNode(key);
+      node->next = pred->next;
+      splice = __sync_bool_compare_and_swap(&(pred->next), curr, node); 
+      if (splice) {
+	//int tmp = (node->next == NULL) ? 0 : node->next->key;
+	//printf("Adding SET %i < %i < %i\n", pred->key, node->key, tmp);
+	return node;
+      }
+    }
+  }
+}	
+      
+bucketlist_t getBucket(awesomeTable_t *table, int idx) {
+  if (table->buckets[idx].head == NULL) {
+    initBucket(table, idx);
+  }
+  return table->buckets[idx];
+}
+
+void initBucket(awesomeTable_t *table, int idx) {
+  int parent = getParent(table, idx);
+  if (table->buckets[parent].head == NULL) {
+    initBucket(table, parent);
+  }
+  table->buckets[idx].head = getSentinel(table->buckets[parent], idx);
+}
+
+int getParent(awesomeTable_t *table, int idx) {
+  int parent = table->bucketSize;
+  parent = parent >> 1;
+  while (parent > idx) {
+    parent = parent >> 1;
+  }
+  parent = idx - parent;
+  return parent;
+}
+
+awesomeTable_t *createAwesomeTable(int logSize) {
+  awesomeTable_t *table = (awesomeTable_t *)malloc(sizeof(awesomeTable_t));
+  table->bucketSize = 1;
+  table->setSize = 0;
+  table->maxSize = 1 << logSize;
+  table->buckets = (bucketlist_t *)malloc(sizeof(bucketlist_t)*table->maxSize);
+  table->buckets[0].head = newNode(0);
+  return table;
+}
+
+void add_awesome(hashtable_t *htable, int key, volatile Packet_t *x) {
+  awesomeTable_t *table = htable->awesome;
+  int idx = key % table->bucketSize;
+  //printf("Adding, key = %i, val = %li, idx = %i\n", key, x->seed, idx);
+  bucketlist_t b = getBucket(table, idx);
+  if (add_bucketlist(b, key, x)) {
+    int setSizeNow = __sync_fetch_and_add(&(table->setSize), 1);
+    int bucketSizeNow = table->bucketSize;
+    if ((setSizeNow / bucketSizeNow) > THRESHOLD) {
+      __sync_val_compare_and_swap(&(table->bucketSize), bucketSizeNow, bucketSizeNow*2);
+    }
+  }
+}
+
+bool remove_awesome(hashtable_t *htable, int key) {
+  awesomeTable_t *table = htable->awesome;
+  int idx = key % table->bucketSize;
+  bucketlist_t b = getBucket(table, idx);
+  if (remove_bucketlist(b, key)) {
+    __sync_fetch_and_sub(&(table->setSize), 1);
+    return true;
+  }
+  return false;
+}
+
+bool contains_awesome(hashtable_t *htable, int key) {
+  awesomeTable_t *table = htable->awesome;
+  int idx = key % table->bucketSize;
+  bucketlist_t b = getBucket(table, idx);
+  return contains_bucketlist(b, key);
+}
+
+void print_awesome(awesomeTable_t * htable)
+{
+  int i;
+  printf("\n~~~ Locked Table ~~~\nSize = %li\n\n", htable->bucketSize);
+  for(i = 0; i < htable->bucketSize; i++ ) {
+    printf("BUCKET %d ...\n",i);
+    if(htable->buckets[i].head != NULL) {
+      node_t *curr = htable->buckets[i].head->next;
+      while(curr && (curr->val)) {
+	printf("KEY:%i\n", curr->key);
+	curr = curr->next;
+      }
+    }
+    printf("\n");
+  }
+  printf("~~~ End Table ~~~\n\n");
+}
+
+void print_table(hashtable_t *htable, int type) {
+  switch(type) {
+  case(LOCKED):
+    print_locked(htable->locked);
+    break;
+  case(LOCKFREEC):
+    print_lockFreeC(htable->lockFreeC);
+    break;
+  case(LINEARPROBED):
+    print_linearProbe(htable->linearProbe);
+    break;
+  case(AWESOME):
+    print_awesome(htable->awesome);
+    break;
+  }
+}
+
 long countPkt(hashtable_t *htable, int type) {
-  int i, size;
+  int i, size = 0;
   long sum = 0;
+  node_t * curr = NULL;
   SerialList_t *bucket = NULL;
 
   switch(type) {
@@ -762,12 +1012,38 @@ long countPkt(hashtable_t *htable, int type) {
     }
     break;
   case (AWESOME):
-    size = htable->awesome->size;
-    for (i = 0; i < size; i++) {
-      bucket = htable->locked->table[i];
-      sum += list_len(bucket);
+    curr = htable->awesome->buckets[0].head;
+    while (curr) {
+      sum += (curr->val != NULL);
+      curr = curr->next;
     }
     break;
   }
   return sum;
+}
+
+char *binrep (unsigned int val) {
+  char *pbuff = (char *)malloc(32);
+  
+  int sz = 32;
+  /* Special case for zero to ensure some output. */
+  if (val == 0) {
+    *pbuff++ = '0';
+    *pbuff = '\0';
+    return pbuff;
+  }
+  
+  /* Work from the end of the buffer back. */
+  pbuff += 32;
+  *pbuff-- = '\0';
+  
+  /* For each bit (going backwards) store character. */
+  while (val != 0) {
+    if (sz-- == 0) return NULL;
+    *pbuff-- = ((val & 1) == 1) ? '1' : '0';
+
+    /* Get next bit. */
+    val >>= 1;
+  }
+  return pbuff+1;
 }

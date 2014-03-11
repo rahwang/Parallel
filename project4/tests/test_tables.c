@@ -148,16 +148,17 @@ int TESTcreatetable(int tableType, int numPkt, int numWorkers) {
     for (i = 0; i < size; i++) {
       sum += ((t->linearProbe->table)[i].value != NULL);
     }
-    break;/*
+    break;
   case(AWESOME):
-    t->awesome = createAwesomeTable(numPkt, 12, numWorkers);
-    for (i = 0; i < (t->awesome->size); i++) {
-      if ((t->awesome->table)[i] != NULL) {
-	sum +=  (t->awesome->table)[i]->size;
-      }
+    t->awesome = createAwesomeTable(30);
+    for (i=0; i < numPkt; i++) {
+      pkt = getAddPacket(source);
+      add_awesome(t, i, pkt->body);
     }
-    size = t->awesome->size;
-    break; */
+    size = (1 << numPkt);
+    //size = t->awesome->bucketSize;
+    sum = (int)countPkt(t, tableType);
+    break; 
   }
   if (size != (1 << numPkt)) {
     fprintf(stderr,"ERROR: Tree size incorrect. Got %i. Want %i.\n", size, (1 << numPkt));
@@ -182,7 +183,7 @@ void addWorker(ParallelPacketWorker_t *data) {
   while (data->myCount) {
     //printf("FROM THREAD %i, count = %i\n", data->tid, data->myCount);
     pkt = getRandomPacket(genSource);
-    (*addf)(table, mangleKey((HashPacket_t *)pkt), pkt->body);
+    (*addf)(table, (data->myCount)+(data->tid * 100), pkt->body);
     (data->myCount)--;
   }
 }
@@ -205,7 +206,7 @@ int TESTadd(int tableType, int numPkt, int numWorkers)
   }
   
   genSource = createHashPacketGenerator(.25, .25, 0.5, 1000);
-
+  
   // Initialize Table + worker data
   pthread_t worker[numWorkers];
   ParallelPacketWorker_t data[numWorkers];
@@ -214,7 +215,7 @@ int TESTadd(int tableType, int numPkt, int numWorkers)
   for (i = 0 ; i < numWorkers; i++) {
     data[i].myCount = numPkt/numWorkers;
   }
-
+  
   // Spawn Workers
   for (i = 0; i <numWorkers; i++) {
     if ((rc = pthread_create(worker+i, NULL, (void *) &addWorker, (void *) (data+i)))) {
@@ -230,10 +231,10 @@ int TESTadd(int tableType, int numPkt, int numWorkers)
 
   int res = (numPkt == countPkt(htable, tableType));
   if (!res) {
-    //print_locked(htable->locked);
+    print_table(htable, tableType);
     printf("size %li == packets %i ?\n", countPkt(htable, tableType), numPkt);
   }
-  //print_linearProbe(htable->linearProbe);
+  //print_table(htable, tableType);
   free_htable(htable, tableType);
   return res;
 }
@@ -250,8 +251,8 @@ void containsWorker(ParallelPacketWorker_t *data) {
 
   while (data->myCount > 0) {
     //printf("Hello %li\n", data->myCount);
-    if (!((*containsf)(table, (data->myCount)-1)) ||
-        ((*containsf)(table, (data->myCount)+top))) {
+    if (!((*containsf)(table, (data->myCount)-1)) 
+	|| ((*containsf)(table, (data->myCount)+top))) {
 	data->myCount = -1;
 	break;
     } 
@@ -306,17 +307,15 @@ int TESTcontains(int tableType, int numPkt, int numWorkers)
       add_linearProbe(htable, i, pkt->body);
       enqueue(queues[0], numPkt+1, pkt, i);
     }
-    break;/*
+    break;
   case(AWESOME):
     for (i=0; i < numPkt; i++) {
       pkt = getRandomPacket(genSource);
       add_awesome(htable, i, pkt->body);
       enqueue(queues[0], numPkt+1, pkt, i);
     }
-    break;*/
+    break;
   }
-  
-  //print_lockFreeC(htable->lockFreeC);
   
   // Spawn Workers
   for (i = 0; i <numWorkers; i++) {
@@ -337,7 +336,7 @@ int TESTcontains(int tableType, int numPkt, int numWorkers)
     res += (data[i].myCount == -1);
     //printf("COUNT = %i\n", data[i].myCount);
   }
-
+  //print_table(htable, tableType);
   free_htable(htable, tableType);
   return !res;
 }
@@ -410,15 +409,15 @@ int TESTremove(int tableType, int numPkt, int numWorkers)
       add_linearProbe(htable, pkt->key, pkt->body);
       enqueue(queues[i % numWorkers], numPkt+1, pkt, i);
     }
-    break; /*
-	     case(AWESOME):
+    break; 
+  case(AWESOME):
     for (i=0; i < (numPkt*2); i++) {
 	pkt = getRandomPacket(genSource);
 	pkt->key = i;
 	add_awesome(htable, pkt->key, pkt->body);
 	enqueue(queues[i % numWorkers], numPkt+1, pkt, i);
     }
-    break; */
+    break;
   }
   
   for (i = 0 ; i < numWorkers; i++) {
@@ -496,7 +495,7 @@ void speedups(int time, int n, int testType) {
 
   printf("\n~~~~ Speedups (n = %i, type = %s) ~~~~ \n\n", n, type); 
   printf("Serial packets = %15f\n\n", serial); 
-
+  
   parallel = parallelHashPacketTest(time, adds, rems, hit, b, 4000, s, n, 1);
   printf("LOCKED = %15f\n", parallel/serial); 
   parallel = parallelHashPacketTest(time, adds, rems, hit, b, 4000, s, n, 2);
@@ -562,7 +561,7 @@ void dispatcher(int time, int n, int testType) {
 
 
 int main()
-{ /*
+{ 
   printf("\nRunning Framework Tests\n");
   printf("---\n");
   res(TESTserial(), "SERIAL", "(n = 1)");
@@ -631,7 +630,28 @@ int main()
   res(TESTintegration(3, 2000, 1), "INTEGRATION", "(time = 2000, n = 1)");
   res(TESTintegration(3, 2000, 16), "INTEGRATION", "(time = 2000, n = 16)"); 
   res(TESTintegration(3, 2000, 32), "INTEGRATION", "(time = 2000, n = 32)"); 
-  printf("---\n");  */
+  printf("---\n"); 
+  printf("\nRunning Awesome Table Tests\n");
+  printf("---\n"); 
+  res(TESTcreatetable(4, 1, 1), "CREATE", "(logSz = 30, n = 1)");
+  res(TESTcreatetable(4, 16, 1), "CREATE", "(logSz = 30, n = 1)");
+  res(TESTcreatetable(4, 16, 32), "CREATE", "(logSz = 30, n = 32)"); 
+  res(TESTadd(4, 1, 1), "ADD", "(pkts = 1, n = 1)"); 
+  res(TESTadd(4, 16, 1), "ADD", "(pkts = 16, n = 1)");
+  res(TESTadd(4, 16, 16), "ADD", "(pkts = 16, n = 16)"); 
+  res(TESTadd(4, 128, 32), "ADD", "(pkts = 128, n = 32)"); 
+  res(TESTcontains(4, 1, 1), "CONTAINS", "(pkts = 1, n = 1)"); 
+  res(TESTcontains(4, 16, 1), "CONTAINS", "(pkts = 16, n = 1)");
+  res(TESTcontains(4, 16, 16), "CONTAINS", "(pkts = 16, n = 16)");
+  res(TESTcontains(4, 128, 32), "CONTAINS", "(pkts = 128, n = 32)");
+  res(TESTremove(4, 1, 1), "REMOVE", "(pkts = 1, n = 1)");
+  res(TESTremove(4, 16, 1), "REMOVE", "(pkts = 16, n = 1)");
+  res(TESTremove(4, 16, 16), "REMOVE", "(pkts = 16, n = 16)");
+  res(TESTremove(4, 128, 32), "REMOVE", "(pkts = 128, n = 32)"); 
+  res(TESTintegration(4, 2000, 1), "INTEGRATION", "(time = 2000, n = 1)");
+  res(TESTintegration(4, 2000, 16), "INTEGRATION", "(time = 2000, n = 16)"); 
+  res(TESTintegration(4, 2000, 32), "INTEGRATION", "(time = 2000, n = 32)"); 
+  printf("---\n");
 
   //speedups(2000, 4, o_reads);
   //speedups(2000, 4, o_writes);
@@ -644,7 +664,7 @@ int main()
   speedups(2000, 15, s_reads);
   speedups(2000, 15, s_writes);
   speedups(2000, 16, s_reads);
-  speedups(2000, 16, s_writes); */
+  speedups(2000, 16, s_writes); 
   dispatcher(2000, 4, s_reads);
   dispatcher(2000, 4, s_writes);
   dispatcher(2000, 8, s_reads);
@@ -654,8 +674,10 @@ int main()
   dispatcher(2000, 15, s_reads);
   dispatcher(2000, 15, s_writes);
   dispatcher(2000, 16, s_reads);
-  dispatcher(2000, 16, s_writes);
+  dispatcher(2000, 16, s_writes); */
+  
+  //dispatcher(2000, 1, s_writes);
 
-
+  
   return 0;
 }
