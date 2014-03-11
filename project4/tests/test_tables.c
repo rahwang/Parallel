@@ -345,14 +345,14 @@ int TESTcontains(int tableType, int numPkt, int numWorkers)
 
 void removeWorker(ParallelPacketWorker_t *data) {
   volatile HashPacket_t * pkt;
-  HashList_t **queues = data->queues;
+  //HashList_t **queues = data->queues;
   hashtable_t *table = data->table;
   //print_locked(table->locked);
 
   bool (*removef)(hashtable_t *, int) = data->removef;
 
   while (data->myCount > 0) {
-    pkt = getPacket(queues, data->tid);
+    pkt = getPacket(data->queues, data->locks, data->tid, data->n);
     if (!(*removef)(table, pkt->key)) {
       data->myCount = -1;
       return;
@@ -562,7 +562,7 @@ void dispatcher(int time, int n, int testType) {
 
 
 int main()
-{ 
+{ /*
   printf("\nRunning Framework Tests\n");
   printf("---\n");
   res(TESTserial(), "SERIAL", "(n = 1)");
@@ -631,11 +631,11 @@ int main()
   res(TESTintegration(3, 2000, 1), "INTEGRATION", "(time = 2000, n = 1)");
   res(TESTintegration(3, 2000, 16), "INTEGRATION", "(time = 2000, n = 16)"); 
   res(TESTintegration(3, 2000, 32), "INTEGRATION", "(time = 2000, n = 32)"); 
-  printf("---\n"); 
+  printf("---\n");  */
 
   //speedups(2000, 4, o_reads);
   //speedups(2000, 4, o_writes);
-  speedups(2000, 4, s_reads);
+  /*  speedups(2000, 4, s_reads);
   speedups(2000, 4, s_writes);
   speedups(2000, 8, s_reads);
   speedups(2000, 8, s_writes);
@@ -644,17 +644,17 @@ int main()
   speedups(2000, 15, s_reads);
   speedups(2000, 15, s_writes);
   speedups(2000, 16, s_reads);
-  speedups(2000, 16, s_writes);
-  /*  dispatcher(200, 4, s_reads);
-  dispatcher(200, 4, s_writes);
-  dispatcher(200, 8, s_reads);
-  dispatcher(200, 8, s_writes);
-  dispatcher(200, 10, s_reads);
-  dispatcher(200, 10, s_writes);
-  dispatcher(200, 15, s_reads);
-  dispatcher(200, 15, s_writes);
-  dispatcher(200, 16, s_reads);
-  dispatcher(200, 16, s_writes); */
+  speedups(2000, 16, s_writes); */
+  dispatcher(2000, 4, s_reads);
+  dispatcher(2000, 4, s_writes);
+  dispatcher(2000, 8, s_reads);
+  dispatcher(2000, 8, s_writes);
+  dispatcher(2000, 10, s_reads);
+  dispatcher(2000, 10, s_writes);
+  dispatcher(2000, 15, s_reads);
+  dispatcher(2000, 15, s_writes);
+  dispatcher(2000, 16, s_reads);
+  dispatcher(2000, 16, s_writes);
 
 
   return 0;

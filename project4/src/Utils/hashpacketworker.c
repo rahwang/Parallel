@@ -30,8 +30,7 @@ void serialWorker(SerialPacketWorker_t * data){
 void parallelWorker(ParallelPacketWorker_t * data){
   volatile HashPacket_t * pkt;
   hashtable_t *table = data->table;
-  HashList_t **queues = data->queues;
-  int i = data->tid;
+  //HashList_t **queues = data->queues;
   
   void (*addf)(hashtable_t *, int, volatile Packet_t *) = data->addf;
   bool (*removef)(hashtable_t *, int) = data->removef;
@@ -44,7 +43,7 @@ void parallelWorker(ParallelPacketWorker_t * data){
 
   //printf("STARTING %i\n", data->tid);  
   while(*(data->go)) {
-    if ((pkt = getPacket(queues, i))) {
+    if ((pkt = getPacket(data->queues, data->locks, data->tid, data->n))) {
       data->fingerprints += getFingerprint(pkt->body->iterations, pkt->body->seed);
       
       switch(pkt->type) {
@@ -55,6 +54,7 @@ void parallelWorker(ParallelPacketWorker_t * data){
 	(*removef)(table, mangleKey((HashPacket_t *)pkt));
 	break;
       case Contains:
+	// contains++;
 	//successful += (*containsf)(table, mangleKey((HashPacket_t *)pkt));
 	(*containsf)(table, mangleKey((HashPacket_t *)pkt));
 	break;
@@ -69,11 +69,11 @@ void parallelWorker(ParallelPacketWorker_t * data){
 void noloadWorker(ParallelPacketWorker_t * data){
   volatile HashPacket_t * pkt;
   //hashtable_t *table = data->table;
-  HashList_t **queues = data->queues;
-  int i = data->tid;
+  //HashList_t **queues = data->queues;
+  //int i = data->tid;
 
   while(*(data->go)) {
-    if ((pkt = getPacket(queues, i))) {
+    if ((pkt = getPacket(data->queues, data->locks, data->tid, data->n))) {
       data->myCount++;
     }
   }
@@ -90,10 +90,16 @@ int enqueue(HashList_t *q, int D, volatile HashPacket_t *packet, int key) {
 }
 
 
-volatile HashPacket_t *getPacket(HashList_t **q, int i) 
+volatile HashPacket_t *getPacket(HashList_t **q, pthread_mutex_t *locks, int id, int n) 
 {
-  //volatile HashPacket_t *pkt;
-  return dequeue(q[i]);
+  volatile HashPacket_t *pkt;
+  int i = id;
+  while(pthread_mutex_trylock(locks+i)) {
+    i = (i+1) % n;
+  }
+  pkt = dequeue(q[i]);
+  pthread_mutex_unlock(locks+i);
+  return pkt;
 }
 
   

@@ -315,9 +315,13 @@ lockedTable_t *initLocked(int maxBucketSize, int initSize,
     pkt = getAddPacket(source);
     addNoCheck_locked(htable->locked, pkt->key, pkt->body);
   }
+
+  pthread_mutex_t *locks = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t)*numWorkers);
+
   for (i = 0; i < numWorkers; i++) {
+    pthread_mutex_init(locks+i, NULL);
+    data[i].locks = locks;
     data[i].go = go;
-    //data[i].totalPackets = 0;
     data[i].queues = queues;
     data[i].tid = i;
     data[i].n = numWorkers;
@@ -349,9 +353,13 @@ lockFreeCTable_t *initLockFreeC(int maxBucketSize, int initSize,
     pkt = getAddPacket(source);
     addNoCheck_lockFreeC(htable->lockFreeC, pkt->key, pkt->body);
   }
+
+  pthread_mutex_t *locks = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t)*numWorkers);
+
   for (i = 0; i < numWorkers; i++) {
+    pthread_mutex_init(locks+i, NULL);
+    data[i].locks = locks;
     data[i].go = go;
-    //data[i].totalPackets = 0;
     data[i].queues = queues;
     data[i].tid = i;
     data[i].n = numWorkers;
@@ -383,9 +391,13 @@ linearProbeTable_t *initLinearProbe(int maxStep, int initSize,
     pkt = getAddPacket(source);
     add_linearProbe(htable, pkt->key, pkt->body);
   }
+
+  pthread_mutex_t *locks = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t)*numWorkers);
+
   for (i = 0; i < numWorkers; i++) {
+    pthread_mutex_init(locks+i, NULL);
+    data[i].locks = locks;
     data[i].go = go;
-    //data[i].totalPackets = 0;
     data[i].queues = queues;
     data[i].tid = i;
     data[i].n = numWorkers;
