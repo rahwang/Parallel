@@ -754,9 +754,9 @@ window newWindow(node_t *pred, node_t *curr) {
   return *w;
 }
 
-window find(node_t *head, int key) {
+void find(node_t *head, int key, node_t **c, node_t **p) {
   node_t *pred = head;
-  node_t *curr = NULL;
+  node_t *curr;
   node_t *succ = NULL;
 
   curr = pred->next;
@@ -764,19 +764,19 @@ window find(node_t *head, int key) {
     succ = curr->next;
     while(curr->marked) {
       if(!(__sync_bool_compare_and_swap(&(pred->next), curr, succ))) {
-	return find(head, key);
+	return find(head, key, c, p);
       }
       curr = succ;
       succ = curr->next;
     }
     if (curr->key >= key) {
-      //printf("find %i < %i < %i\n", pred->key, key, curr->key);
-      return newWindow(pred, curr);
+      break;
     }
     pred = curr;
     curr = succ;
   }
-  return newWindow(pred, NULL);
+  *c = curr;
+  *p = pred;
 }
 
   // 32-bit word to reverse bit order
@@ -814,9 +814,7 @@ bool add_bucketlist(bucketlist_t bucket, int key, volatile Packet_t *x) {
 
   //printf("Adding, key = %i, val = %li\n", key, x->seed);
   while(1) {
-    window w = find(bucket.head, nuKey);
-    pred = w.pred;
-    curr = w.curr;
+    find(bucket.head, nuKey, &curr, &pred);
     if (curr && (curr->key == nuKey)) {
       return false;
     }
@@ -824,8 +822,6 @@ bool add_bucketlist(bucketlist_t bucket, int key, volatile Packet_t *x) {
       new->next = curr;
       new->val = x;
       if (__sync_bool_compare_and_swap(&(pred->next), curr, new)) {
-	//int tmp = (new->next == NULL) ? 0 : new->next->key;
-	//printf("Adding %i < %i < %i\n", pred->key, new->key, tmp);
 	return true;
       }
     }
@@ -837,9 +833,7 @@ bool remove_bucketlist(bucketlist_t bucket, int key) {
   int nuKey = makeKey(key);
 
   while(1) {
-    window w = find(bucket.head, nuKey);
-    pred = w.pred;
-    curr = w.curr;
+    find(bucket.head, nuKey, &curr, &pred);
     if (!curr || (curr->key != nuKey)) {
       return false;
     }
@@ -854,18 +848,17 @@ bool remove_bucketlist(bucketlist_t bucket, int key) {
 
 bool contains_bucketlist(bucketlist_t bucket, int key) {
   int nuKey = makeKey(key);
-  window w = find(bucket.head, nuKey);
-  //printf("key = %i\n", key);
-  return (w.curr) && ((w.curr->key == nuKey) && (!w.curr->marked));
+  node_t *curr, *pred;
+  find(bucket.head, nuKey, &curr, &pred);
+  return (curr) && ((curr->key == nuKey) && (!curr->marked));
 }
 
 node_t *getSentinel(bucketlist_t bucket, int idx) {
+  node_t *curr, *pred;
   int key = makeSentinelKey(idx);
   bool splice;
   while(1) {
-    window w = find(bucket.head, key);
-    node_t *pred = w.pred;
-    node_t *curr = w.curr;
+    find(bucket.head, key, &curr, &pred);
     if (curr && (curr->key == key)) {
       return curr;
     }
@@ -874,8 +867,6 @@ node_t *getSentinel(bucketlist_t bucket, int idx) {
       node->next = pred->next;
       splice = __sync_bool_compare_and_swap(&(pred->next), curr, node); 
       if (splice) {
-	//int tmp = (node->next == NULL) ? 0 : node->next->key;
-	//printf("Adding SET %i < %i < %i\n", pred->key, node->key, tmp);
 	return node;
       }
     }

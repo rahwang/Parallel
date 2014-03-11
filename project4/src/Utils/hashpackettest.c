@@ -159,7 +159,8 @@ double parallelHashPacketTest(int numMilliseconds,
   // Stop timing
   stopTimer(&timer);
 
-  //printf("tree size: %li \n", countPkt(htable, tableType));
+  //print_table(htable, tableType);
+  printf("tree size: %li \n", countPkt(htable, tableType));
   
   free_htable(htable, tableType);
   // report the total number of packets processed and total time

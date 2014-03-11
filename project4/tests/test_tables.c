@@ -502,8 +502,8 @@ void speedups(int time, int n, int testType) {
   printf("LOCKFC = %15f\n", parallel/serial);
   parallel = parallelHashPacketTest(time, adds, rems, hit, b, 4000, s, n, 3);
   printf("LINEAR = %15f\n", parallel/serial); 
-  // parallel = parallelHashPacketTest(time, .25, .25, .5, 4, 4000, 4, n, 1);
-  //printf("LOCKED Speedup (n = %i) = %li\n", n, parallel/serial);*/
+  parallel = parallelHashPacketTest(time, adds, rems, hit, b, 4000, s, n, 4);
+  printf("AWESOM = %15f\n", parallel/serial); 
 }
 
 
@@ -651,21 +651,31 @@ int main()
   res(TESTintegration(4, 2000, 1), "INTEGRATION", "(time = 2000, n = 1)");
   res(TESTintegration(4, 2000, 16), "INTEGRATION", "(time = 2000, n = 16)"); 
   res(TESTintegration(4, 2000, 32), "INTEGRATION", "(time = 2000, n = 32)"); 
-  printf("---\n");
+  printf("---\n"); 
 
+  //res(TESTintegration(4, 3, 4), "INTEGRATION", "(time = 5, n = 1)");
+ 
+  //speedups(2000, 1, o_reads);
+  //speedups(2000, 1, o_writes);
+  //speedups(2000, 2, o_reads);
+  //speedups(2000, 2, o_writes);
   //speedups(2000, 4, o_reads);
   //speedups(2000, 4, o_writes);
-  /*  speedups(2000, 4, s_reads);
-  speedups(2000, 4, s_writes);
-  speedups(2000, 8, s_reads);
-  speedups(2000, 8, s_writes);
-  speedups(2000, 10, s_reads);
-  speedups(2000, 10, s_writes);
-  speedups(2000, 15, s_reads);
-  speedups(2000, 15, s_writes);
-  speedups(2000, 16, s_reads);
-  speedups(2000, 16, s_writes); 
-  dispatcher(2000, 4, s_reads);
+  //speedups(2000, 7, o_reads);
+  //speedups(2000, 7, o_writes);
+
+
+  speedups(1000, 4, s_reads);
+  speedups(1000, 4, s_writes);
+  speedups(1000, 7, s_reads);
+  speedups(1000, 7, s_writes);
+  speedups(1000, 8, s_reads);
+  speedups(1000, 8, s_writes);
+  speedups(1000, 10, s_reads);
+  speedups(1000, 10, s_writes);
+  speedups(1000, 15, s_reads);
+  speedups(1000, 15, s_writes);
+  /*  dispatcher(2000, 4, s_reads);
   dispatcher(2000, 4, s_writes);
   dispatcher(2000, 8, s_reads);
   dispatcher(2000, 8, s_writes);
