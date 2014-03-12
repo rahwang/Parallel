@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #define THRESHOLD .5
+#define MAXSIZE 33554432
 
 /* SERIAL TABLE FUNCTIONS */
 
@@ -14,7 +15,7 @@ serialTable_t * createSerialTable(int logSize, int maxBucketSize)
   htable->mask = (1 << logSize) - 1;
   int tableSize = (1 << logSize);
   htable->size = tableSize;
-  htable->table = (SerialList_t **)malloc(sizeof(SerialList_t*)* tableSize);
+  htable->table = (SerialList_t **)malloc(sizeof(SerialList_t*)*tableSize);
   for(int i =0; i < tableSize; i++)
     htable->table[i] = NULL;
   

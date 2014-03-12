@@ -1,7 +1,7 @@
 UTILS = Utils/stopwatch.o Utils/generators.o Utils/fingerprint.o Utils/seriallist.o Utils/hashlist.o Utils/hashgenerator.o Utils/crc32.o Utils/hashpackettest.o Utils/hashpacketworker.o Utils/hashtable.o Utils/packetsource.o Utils/paddedprim.o Utils/statistics.o
 SOBJ = serial_ht.o
 POBJ = parallel_ht.o
-NOBJ = parallelNoLoad_ht.o
+NOBJ = noload_ht.o
 DEPS = $(OBJS:.o=.d)
 CC = gcc
 CFLAGS = -Werror -I../../include -g3 -Wall -fpic -std=gnu99 -MMD -MP -DDEBUG -O3
@@ -10,7 +10,7 @@ PARALLEL = parallel
 NOLOAD = noload
 LDLIBS =  -pthread -lrt
 
-all: $(SERIAL) #$(PARALLEL) #$(NOLOAD)
+all: $(SERIAL) $(PARALLEL) $(NOLOAD)
 
 $(SERIAL): $(SOBJ) $(UTILS)
 	$(CC) $(LDFLAGS) $(LDLIBS) $(SOBJ) $(UTILS) -o $(SERIAL) -lm

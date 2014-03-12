@@ -23,8 +23,8 @@ int main(int argc, char *argv[])
   int trials = 10;
   long res = 0;
   for (i = 0; i < trials; i++) {
-    res += parallelHashPacketTest(numMilliseconds, fractionAdd, fractionRemove, hitRate, maxBucketSize, mean, initSize, numWorkers, tableType) / trials;
+    res += noloadHashPacketTest(numMilliseconds, fractionAdd, fractionRemove, hitRate, maxBucketSize, mean, initSize, numWorkers, tableType) / trials;
   }
   //printf("parallel\tmilsecs\tadds\trems\thits\tmaxbuck\twork\tinit\tn\ttype\n");
-    printf("p\t%u\t%f\t%f\t%f\t%i\t%li\t%i\t%i\t%i\t%li\n", numMilliseconds, fractionAdd, fractionRemove, hitRate, maxBucketSize, mean, initSize, numWorkers, tableType, res);
+    printf("n\t%u\t%f\t%f\t%f\t%i\t%li\t%i\t%i\t%i\t%li\n", numMilliseconds, fractionAdd, fractionRemove, hitRate, maxBucketSize, mean, initSize, numWorkers, tableType, res);
 }

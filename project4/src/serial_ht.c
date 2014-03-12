@@ -15,6 +15,13 @@ int main(int argc, char *argv[])
   int maxBucketSize = atoi(argv[5]);
   long mean = (long)atoi(argv[6]);
   int initSize = atoi(argv[7]);
-  
-  serialHashPacketTest(numMilliseconds, fractionAdd, fractionRemove, hitRate, maxBucketSize, mean, initSize);
+
+  int trials = 10;
+  long res = 0;
+  int i;
+  for (i = 0; i < trials; i++) {
+    res += serialHashPacketTest(numMilliseconds, fractionAdd, fractionRemove, hitRate, maxBucketSize, mean, initSize) / trials;
+  }
+  //printf("serial\tmilsecs\tadds\trems\thits\tmaxbuck\twork\tinit\n");
+  printf("s\t%u\t%f\t%f\t%f\t%i\t%li\t%i\t%li\n", numMilliseconds, fractionAdd, fractionRemove, hitRate, maxBucketSize, mean, initSize, res);
 }
