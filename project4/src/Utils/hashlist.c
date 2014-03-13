@@ -56,6 +56,7 @@ bool remove_hashlist(HashList_t * list, int key){
     }
     free(temp);
     __sync_fetch_and_sub(&(list->size), 1);
+    //list->size--;
     return true;
   }else{
     while(curr->next != NULL) {
@@ -67,6 +68,7 @@ bool remove_hashlist(HashList_t * list, int key){
 	}
 	free(temp);
 	__sync_fetch_and_sub(&(list->size), 1);
+	//list->size--;
 	return true;
       }
       else
@@ -90,7 +92,8 @@ void add_hashlist(HashList_t * list, int key, volatile HashPacket_t * value){
     if (list->size == 0) {
       list->tail = newItem;
     }
-  __sync_fetch_and_add(&(list->size), 1);
+    __sync_fetch_and_add(&(list->size), 1);
+    //list->size++;
   }
 }
 
@@ -102,6 +105,7 @@ void addNoCheck_hashlist(HashList_t * list, int key, volatile HashPacket_t * val
   newItem->next = list->head;
   list->head = newItem;
   __sync_fetch_and_add(&(list->size), 1);
+  //list->size++;
 }
 
 void print_hashlist(HashList_t * list){

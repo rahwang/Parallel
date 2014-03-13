@@ -34,7 +34,7 @@ void parallelWorker(ParallelPacketWorker_t *data);
 void noloadWorker(ParallelPacketWorker_t *data);
 
 int enqueue(HashList_t *q, int D, volatile HashPacket_t *packet, int key);
-volatile HashPacket_t *getPacket(HashList_t **q, pthread_mutex_t *locks, int id, int n);
+volatile HashPacket_t *getPacket(HashList_t **q, int id);
 volatile HashPacket_t *dequeue(HashList_t *q); 
 
 #endif /* HASHPACKETWORKER_H_ */

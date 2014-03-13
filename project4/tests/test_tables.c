@@ -58,19 +58,23 @@ int compList(HashList_t *a, HashList_t *b) {
 int TESTenqueue(int numPackets) {
 
   int i;
+  HashItem_t * newItem;
   HashPacketGenerator_t * source = createHashPacketGenerator(.25, .25, 0.5, 1000);
 
   HashList_t *queue = createHashList();
-  HashList_t *test = createHashList();
-
-  for (i=0; i < numPackets; i++) {
-    volatile HashPacket_t *packet = getRandomPacket(source);
-    if (i < 12) {
-      add_hashlist(test, i, packet);
-    }
-    enqueue(queue, 12, packet, i);
+  volatile HashPacket_t *packet = getRandomPacket(source);
+  newItem = (HashItem_t *)malloc(sizeof(HashItem_t));
+  newItem->key = numPackets;
+  newItem->value = packet;
+  queue->head = newItem;
+  queue->tail = newItem;
+  queue->size++;
+  
+  for (i=0; i < numPackets-1; i++) {
+    packet = getRandomPacket(source);
+    enqueue(queue, numPackets+1, packet, i);
   }
-  return compList(queue, test);
+  return (queue->size == numPackets);
 }
 
 
@@ -81,23 +85,32 @@ int TESTenqueue(int numPackets) {
 int TESTdequeue(int n) {
 
   int i;
+  HashItem_t * newItem;
   HashPacketGenerator_t * source = createHashPacketGenerator(.25, .25, 0.5, 1000);
 
   HashList_t *queue = createHashList();
-  HashList_t *test = createHashList();
+  volatile HashPacket_t *packet = getRandomPacket(source);
+  newItem = (HashItem_t *)malloc(sizeof(HashItem_t));
+  newItem->key = n;
+  newItem->value = packet;
+  queue->head = newItem;
+  queue->tail = newItem;
+  queue->size++;
 
-  for (i=0; i < n; i++) {
+
+  for (i=0; i < n-1; i++) {
     volatile HashPacket_t *packet = getRandomPacket(source);
-    enqueue(test, 12, packet, i);
-    enqueue(queue, 12, packet, i);
+    enqueue(queue, n+1, packet, i);
    }
 
-  for (i = 0; i < n; i++) {
+  int size = n;
+  for (i = 0; i < n-1; i++) {
     dequeue(queue);
-    remove_hashlist(test, i);
-    if (!compList(queue, test)) {
+    size--;
+    if (size != queue->size) {
+      printf("size = %i\n", queue->size);
       return 0;
-    } 
+    }
   } 
   return 1;
 }
@@ -267,8 +280,17 @@ int TESTcontains(int tableType, int numPkt, int numWorkers)
   // allocate and initialize queues + fingerprints
   HashList_t *queues[numWorkers];
   long fingerprints[numWorkers];
+  volatile HashPacket_t *pkt;
   for (i = 0; i < numWorkers; i++) {
     queues[i] = createHashList();
+    pkt = getRandomPacket(genSource);
+    HashItem_t *newItem = (HashItem_t *)malloc(sizeof(HashItem_t));
+    newItem->key = numPkt;
+    newItem->value = pkt;
+    queues[i]->head = newItem;
+    queues[i]->tail = newItem;
+    queues[i]->size++;
+
     fingerprints[i] = 0;
   }
   
@@ -284,7 +306,6 @@ int TESTcontains(int tableType, int numPkt, int numWorkers)
   }
 
   i = 0;
-  volatile HashPacket_t *pkt;
 
   switch(tableType) {
   case(LOCKED):
@@ -350,8 +371,9 @@ void removeWorker(ParallelPacketWorker_t *data) {
 
   bool (*removef)(hashtable_t *, int) = data->removef;
 
+
   while (data->myCount > 0) {
-    pkt = getPacket(data->queues, data->locks, data->tid, data->n);
+    pkt = getPacket(data->queues, data->tid);
     if (!(*removef)(table, pkt->key)) {
       data->myCount = -1;
       return;
@@ -370,15 +392,16 @@ int TESTremove(int tableType, int numPkt, int numWorkers)
     exit(-1);
   }
   
+  genSource = createHashPacketGenerator(.25, .25, 0.5, 1000);
+
   // allocate and initialize queues + fingerprints
+
   HashList_t *queues[numWorkers];
   long fingerprints[numWorkers];
   for (i = 0; i < numWorkers; i++) {
     queues[i] = createHashList();
     fingerprints[i] = 0;
   }
-  
-  genSource = createHashPacketGenerator(.25, .25, 0.5, 1000);
 
   // Initialize Table + worker data
   pthread_t worker[numWorkers];
@@ -440,10 +463,11 @@ int TESTremove(int tableType, int numPkt, int numWorkers)
   int res = 0;
   for (i = 0; i < numWorkers; i++) {
     res += (data[i].myCount == -1);
-    //printf("COUNT = %i\n", data[i].myCount);
+    //printf("COUNT = %li\n", data[i].myCount);
   }
 
   //print_locked(htable->locked);
+  //printf("size = %li\n",  countPkt(htable, tableType));
   int size = (countPkt(htable, tableType) == numPkt); 
   free_htable(htable, tableType);
   return (!res) && size;
@@ -684,7 +708,6 @@ int main()
   dispatcher(2000, 15, s_reads);
   dispatcher(2000, 15, s_writes);
 
-  res(TESTadd(3, 64, 8), "ADD", "(pkts = 128, n = 32)"); 
   //dispatcher(2000, 1, s_writes);
 
   

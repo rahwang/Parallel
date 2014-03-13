@@ -43,7 +43,7 @@ void parallelWorker(ParallelPacketWorker_t * data){
 
   //printf("STARTING %i\n", data->tid);  
   while(*(data->go)) {
-    if ((pkt = getPacket(data->queues, data->locks, data->tid, data->n))) {
+    if ((pkt = dequeue(data->queues[data->tid]))) {
       data->fingerprints += getFingerprint(pkt->body->iterations, pkt->body->seed);
       
       switch(pkt->type) {
@@ -73,7 +73,7 @@ void noloadWorker(ParallelPacketWorker_t * data){
   //int i = data->tid;
 
   while(*(data->go)) {
-    if ((pkt = getPacket(data->queues, data->locks, data->tid, data->n))) {
+    if ((pkt = dequeue(data->queues[data->tid]))) {
       data->myCount++;
     }
   }
@@ -85,41 +85,34 @@ int enqueue(HashList_t *q, int D, volatile HashPacket_t *packet, int key) {
   if (q->size == D) {
     return 0;
   }    
-  add_hashlist(q, key, packet);
+  HashItem_t * newItem = (HashItem_t *)malloc(sizeof(HashItem_t));
+  newItem->key = key;
+  newItem->value = packet;
+  if (q->size == 0) {
+    q->head = newItem;
+  }
+  else {
+    q->tail->next = newItem;
+  }
+  q->tail = newItem;
+ __sync_fetch_and_add(&(q->size), 1);
   return 1;
 }
 
 
-volatile HashPacket_t *getPacket(HashList_t **q, pthread_mutex_t *locks, int id, int n) 
+volatile HashPacket_t *getPacket(HashList_t **q, int id) 
 {
-  volatile HashPacket_t *pkt;
-  int i = id;
-  while(pthread_mutex_trylock(locks+i)) {
-    i = (i+1) % n;
-  }
-  pkt = dequeue(q[i]);
-  pthread_mutex_unlock(locks+i);
-  return pkt;
+  return dequeue(q[id]);
 }
 
   
 volatile HashPacket_t *dequeue(HashList_t *q) 
 {
-  HashItem_t *curr = q->head;
-  HashItem_t *prev = NULL;
-  volatile HashPacket_t *tmp;
-  if(!curr || !q) {
+  if (q->size < 2) {
     return NULL;
   }
-  if (q->head != q->tail) {
-     while (curr->next) {
-      prev = curr;
-      curr = curr->next;
-    }
-    tmp = curr->value;
-    remove_hashlist(q, curr->key);
-    (q->tail) = prev;
-    return tmp;
-  }
-  return NULL;
+  HashItem_t *curr = q->head;
+  q->head = q->head->next;
+ __sync_fetch_and_sub(&(q->size), 1);
+  return curr->value;
 }

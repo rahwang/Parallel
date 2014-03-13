@@ -452,13 +452,16 @@ awesomeTable_t *initAwesome(int initSize,
 void dispatch(void *args) 
 {
   dispatch_t *data = (dispatch_t *)args;
-  
+  HashList_t **queues = data->queues;
+  int n = data->n;
+  volatile HashPacket_t *pkt;
+
   int i;
-  int sum = 0;
+  int sum = n;
   while(*(data->go)) {
-    for (i = 0; i < data->n; i++) {
-      volatile HashPacket_t *pkt = getRandomPacket(data->source);
-      sum += enqueue((data->queues)[i], 50, pkt, sum);
+    for (i = 0; i < n; i++) {
+      pkt = getRandomPacket(data->source);
+      sum += enqueue(queues[i], 10000, pkt, sum);
     }
   }
   data->count = sum;
